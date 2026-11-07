@@ -1,0 +1,72 @@
+.ob-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-5) var(--s-4);
+}
+.ob-card {
+  width: 100%;
+  max-width: 640px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  padding: var(--s-6);
+}
+.ob-card h1 { font-size: 1.9rem; text-align: center; margin-top: var(--s-5); }
+.ob-card .muted { text-align: center; margin-left: auto; margin-right: auto; }
+
+.ob-progress { height: 12px; background: var(--surface-tint); border-radius: 999px; overflow: hidden; }
+.ob-progress-fill { height: 100%; background: var(--brand); border-radius: 999px; transition: width 0.25s ease; }
+
+.ob-body { margin: var(--s-5) 0; }
+
+.ob-input {
+  width: 100%;
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  text-align: center;
+  padding: 16px;
+  min-height: 64px;
+  border: 3px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface);
+  color: var(--ink);
+}
+.ob-input:focus { border-color: var(--brand); outline: none; }
+.ob-input:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+.ob-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--s-3); }
+.ob-grid.small { grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); }
+
+.ob-choice {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  min-height: 72px;
+  padding: var(--s-3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 3px solid var(--line);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease;
+}
+.ob-choice:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--brand); }
+.ob-choice.selected { border-color: var(--brand-strong); background: var(--surface-tint); }
+.ob-choice:disabled { opacity: 0.45; cursor: not-allowed; }
+.ob-icon { font-size: 1.8rem; line-height: 1; }
+
+.ob-actions { display: flex; justify-content: space-between; gap: var(--s-3); }
+.ob-done { text-align: center; padding: var(--s-5) 0; }
+.ob-done p { margin-left: auto; margin-right: auto; }
+
+@media (max-width: 480px) {
+  .ob-card { padding: var(--s-5) var(--s-4); }
+  .ob-card h1 { font-size: 1.5rem; }
+}

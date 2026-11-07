@@ -1,13 +1,65 @@
-.home { min-height: 100%; display: flex; flex-direction: column; background: #fff; }
-.home-head { text-align: center; padding: var(--s-7) var(--s-4) var(--s-5); }
+.home {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+}
+
+.home-head {
+  text-align: center;
+  padding: var(--s-6) var(--s-4) var(--s-4);
+}
 .home-head h1 { font-size: 3rem; color: #1D6FB0; }
-.home-split { flex: 1; display: grid; grid-template-columns: 1fr 1fr; }
-.home-door { display: flex; flex-direction: column; justify-content: center; padding: var(--s-7); text-decoration: none; transition: filter 0.2s; }
+
+.home-split {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+
+.home-door {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-5);
+  padding: var(--s-6);
+  text-decoration: none;
+  transition: filter 0.2s;
+}
 .home-door:hover { filter: brightness(0.97); }
-.home-door h2 { font-size: 1.8rem; }
-.home-door p { font-size: 1.1rem; }
-.home-door.learner { background: #E4F2FC; color: #17344D; }
-.home-door.learner h2 { color: #1D6FB0; }
-.home-door.teacher { background: #EEF0F2; color: #232A30; }
-.home-door.teacher h2 { color: #2B333A; }
-@media (max-width: 700px) { .home-split { grid-template-columns: 1fr; } .home-door { padding: var(--s-6); } }
+
+.home-door img {
+  width: 100%;
+  max-width: 460px;
+  height: auto;
+  display: block;
+  border-radius: 24px;
+  box-shadow: 0 8px 24px rgba(23, 52, 77, 0.12);
+  transition: transform 0.2s ease;
+}
+.home-door:hover img { transform: translateY(-4px); }
+
+.home-cta {
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: 1.1rem;
+  color: #fff;
+  padding: 14px 32px;
+  min-height: 48px;
+  border-radius: 999px;
+}
+
+/* sky blue side */
+.home-door.learner { background: #E4F2FC; }
+.home-door.learner .home-cta { background: #1D6FB0; }
+
+/* grey side */
+.home-door.teacher { background: #EEF0F2; }
+.home-door.teacher .home-cta { background: #2B333A; border-radius: 12px; }
+
+@media (max-width: 700px) {
+  .home-split { grid-template-columns: 1fr; }
+  .home-door { padding: var(--s-5) var(--s-4); }
+  .home-door img { max-width: 340px; }
+}

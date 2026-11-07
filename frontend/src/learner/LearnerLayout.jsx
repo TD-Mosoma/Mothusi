@@ -2,9 +2,10 @@ import { useState } from 'react'
 import { Outlet, NavLink, Link } from 'react-router-dom'
 import LanguagePicker from '../components/LanguagePicker.jsx'
 import './learner.css'
+import { getLearnerProfile } from '../services/profile.js'
 
 export default function LearnerLayout() {
-  const [lang, setLang] = useState('en')
+  const [lang, setLang] = useState(getLearnerProfile()?.language || 'en')
   return (
     <div className="theme-learner learner-shell">
       <header className="l-top">

@@ -1,12 +1,15 @@
 import { Link } from 'react-router-dom'
 import FractionCircle from '../components/FractionCircle.jsx'
+import { getLearnerProfile } from '../services/profile.js'
 
 export default function LearnerHome() {
+  const profile = getLearnerProfile()
+  const firstName = profile?.fullName?.trim().split(' ')[0]
   return (
     <div className="stack">
       <section className="l-hero card">
         <div>
-          <h1>Hello! Ready to learn?</h1>
+          <h1>{firstName ? `Hello, ${firstName}!` : 'Hello! Ready to learn?'}</h1>
           <p>Today you are learning about fractions. Take your time. You can ask for another explanation at any point.</p>
           <Link to="/learner/lesson" className="btn">Start my lesson</Link>
         </div>
