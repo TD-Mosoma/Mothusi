@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import Home from './pages/Home.jsx'
 import LearnerLayout from './learner/LearnerLayout.jsx'
@@ -10,23 +11,44 @@ import LearnerOnboarding from './learner/LearnerOnboarding.jsx'
 import TeacherOnboarding from './teacher/TeacherOnboarding.jsx'
 
 export default function App() {
+  const [isDarkMode, setIsDarkMode] = useState(
+    () => window.localStorage.getItem('mothusi-theme') === 'dark',
+  )
+
+  useEffect(() => {
+    const theme = isDarkMode ? 'dark' : 'light'
+    document.documentElement.dataset.theme = theme
+    window.localStorage.setItem('mothusi-theme', theme)
+  }, [isDarkMode])
+
   return (
-    <Routes>
-      <Route path="/" element={<Home />} />
-      
-      <Route path="/learner/onboarding" element={<LearnerOnboarding />} />
-      <Route path="/learner" element={<LearnerLayout />}>
-        <Route index element={<LearnerHome />} />
-        <Route path="lesson" element={<LearnerLesson />} />
-      </Route>
+    <>
+      <Routes>
+        <Route path="/" element={<Home />} />
 
-      <Route path="/teacher/onboarding" element={<TeacherOnboarding />} />
-      <Route path="/teacher" element={<TeacherLayout />}>
-        <Route index element={<TeacherDashboard />} />
-        <Route path="plan" element={<LessonPlanner />} />
-      </Route>
+        <Route path="/learner/onboarding" element={<LearnerOnboarding />} />
+        <Route path="/learner" element={<LearnerLayout />}>
+          <Route index element={<LearnerHome />} />
+          <Route path="lesson" element={<LearnerLesson />} />
+        </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="/teacher/onboarding" element={<TeacherOnboarding />} />
+        <Route path="/teacher" element={<TeacherLayout />}>
+          <Route index element={<TeacherDashboard />} />
+          <Route path="plan" element={<LessonPlanner />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+      <button
+        type="button"
+        className="theme-toggle"
+        aria-label={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
+        aria-pressed={isDarkMode}
+        onClick={() => setIsDarkMode((dark) => !dark)}
+      >
+        {isDarkMode ? 'Light mode' : 'Dark mode'}
+      </button>
+    </>
   )
 }
