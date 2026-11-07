@@ -1,0 +1,52 @@
+/* Mothusi design tokens
+   Learner portal  -> sky blue + white   (.theme-learner)
+   Teacher portal  -> grey + white       (.theme-teacher)
+   Shared type, spacing and status colours so both portals feel like one product. */
+
+:root {
+  --font-display: 'Lexend', system-ui, sans-serif;
+  --font-body: 'Atkinson Hyperlegible', system-ui, sans-serif;
+
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px;
+
+  --ok: #3FA97C;
+  --ok-soft: #E3F5EC;
+  --gentle: #E07A5F;
+  --gentle-soft: #FCEBE6;
+  --star: #F6B93B;
+  --focus: #1D6FB0;
+}
+
+.theme-learner {
+  --bg: #F3F9FE;
+  --surface: #FFFFFF;
+  --surface-tint: #E4F2FC;
+  --line: #CFE5F5;
+  --brand: #3AA0E8;
+  --brand-strong: #1D6FB0;
+  --brand-soft: #BFE2F8;
+  --ink: #17344D;
+  --ink-soft: #4C6A82;
+  --r-md: 20px;
+  --r-lg: 28px;
+  --shadow: 0 2px 0 var(--line), 0 10px 24px rgba(58, 160, 232, 0.12);
+  --base-size: 18px;
+}
+
+.theme-teacher {
+  --bg: #F6F7F8;
+  --surface: #FFFFFF;
+  --surface-tint: #EEF0F2;
+  --line: #DDE1E5;
+  --brand: #4A5560;
+  --brand-strong: #2B333A;
+  --brand-soft: #D5DADF;
+  --ink: #232A30;
+  --ink-soft: #5B6670;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --shadow: 0 1px 2px rgba(35, 42, 48, 0.06), 0 4px 14px rgba(35, 42, 48, 0.05);
+  --base-size: 16px;
+  --focus: #3B5B7A;
+}

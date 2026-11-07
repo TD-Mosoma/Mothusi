@@ -1,0 +1,48 @@
+*, *::before, *::after { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body { font-family: var(--font-body); background: #fff; color: #17344D; }
+
+.theme-learner, .theme-teacher {
+  min-height: 100%;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: var(--base-size);
+  line-height: 1.6;
+}
+
+h1, h2, h3, h4 { font-family: var(--font-display); line-height: 1.25; margin: 0 0 var(--s-3); color: var(--ink); letter-spacing: -0.01em; }
+h1 { font-size: 2rem; font-weight: 600; }
+h2 { font-size: 1.4rem; font-weight: 600; }
+h3 { font-size: 1.1rem; font-weight: 500; }
+p  { margin: 0 0 var(--s-3); max-width: 62ch; }
+a  { color: var(--brand-strong); }
+
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 6px; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: var(--shadow); padding: var(--s-5); }
+
+.btn {
+  font-family: var(--font-display); font-weight: 500; font-size: 1rem;
+  border: 2px solid transparent; border-radius: var(--r-md);
+  padding: 12px 22px; min-height: 48px; cursor: pointer;
+  background: var(--brand-strong); color: #fff;
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: translateY(1px); }
+.btn.secondary { background: var(--surface); color: var(--brand-strong); border-color: var(--brand-soft); }
+.btn.ghost { background: transparent; color: var(--brand-strong); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; padding: 4px 12px; border-radius: 999px; background: var(--surface-tint); color: var(--ink); border: 1px solid var(--line); }
+.chip.ok   { background: var(--ok-soft); border-color: #BFE5D2; }
+.chip.warn { background: var(--gentle-soft); border-color: #F3CFC5; }
+
+.muted { color: var(--ink-soft); }
+.stack > * + * { margin-top: var(--s-4); }
+.row { display: flex; gap: var(--s-4); align-items: center; flex-wrap: wrap; }
+.grid-2 { display: grid; gap: var(--s-5); grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }

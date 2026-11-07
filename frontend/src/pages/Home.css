@@ -1,0 +1,13 @@
+.home { min-height: 100%; display: flex; flex-direction: column; background: #fff; }
+.home-head { text-align: center; padding: var(--s-7) var(--s-4) var(--s-5); }
+.home-head h1 { font-size: 3rem; color: #1D6FB0; }
+.home-split { flex: 1; display: grid; grid-template-columns: 1fr 1fr; }
+.home-door { display: flex; flex-direction: column; justify-content: center; padding: var(--s-7); text-decoration: none; transition: filter 0.2s; }
+.home-door:hover { filter: brightness(0.97); }
+.home-door h2 { font-size: 1.8rem; }
+.home-door p { font-size: 1.1rem; }
+.home-door.learner { background: #E4F2FC; color: #17344D; }
+.home-door.learner h2 { color: #1D6FB0; }
+.home-door.teacher { background: #EEF0F2; color: #232A30; }
+.home-door.teacher h2 { color: #2B333A; }
+@media (max-width: 700px) { .home-split { grid-template-columns: 1fr; } .home-door { padding: var(--s-6); } }
