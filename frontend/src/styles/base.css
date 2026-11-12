@@ -26,10 +26,11 @@ a  { color: var(--brand-strong); }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-md); box-shadow: var(--shadow); padding: var(--s-5); }
 
 .btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   font-family: var(--font-display); font-weight: 500; font-size: 1rem;
   border: 2px solid transparent; border-radius: var(--r-md);
   padding: 12px 22px; min-height: 48px; cursor: pointer;
-  background: var(--brand-strong); color: #fff;
+  background: var(--brand-strong); color: #fff; text-decoration: none;
   transition: transform 0.12s ease, background 0.12s ease;
 }
 .btn:hover { transform: translateY(-1px); }

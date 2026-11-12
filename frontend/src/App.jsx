@@ -4,6 +4,15 @@ import LearnerLayout from './learner/LearnerLayout.jsx'
 import LearnerHome from './learner/LearnerHome.jsx'
 import LearnerLesson from './learner/LearnerLesson.jsx'
 import LearnerOnboarding from './learner/LearnerOnboarding.jsx'
+import {
+  LearnerLessons,
+  LearnerTopic,
+  LearnerPractice,
+  LearnerProgress,
+  LearnerSaved,
+  LearnerPreferences,
+  LearnerProfile,
+} from './learner/LearnerPages.jsx'
 import TeacherOnboarding from './teacher/TeacherOnboarding.jsx'
 import TeacherLayout from './teacher/TeacherLayout.jsx'
 import TeacherDashboard from './teacher/TeacherDashboard.jsx'
@@ -29,6 +38,13 @@ export default function App() {
       <Route path="/learner" element={<LearnerLayout />}>
         <Route index element={<LearnerHome />} />
         <Route path="lesson" element={<LearnerLesson />} />
+        <Route path="lessons" element={<LearnerLessons />} />
+        <Route path="topic" element={<LearnerTopic />} />
+        <Route path="practice" element={<LearnerPractice />} />
+        <Route path="progress" element={<LearnerProgress />} />
+        <Route path="saved" element={<LearnerSaved />} />
+        <Route path="preferences" element={<LearnerPreferences />} />
+        <Route path="profile" element={<LearnerProfile />} />
       </Route>
 
       <Route path="/teacher" element={<TeacherLayout />}>
