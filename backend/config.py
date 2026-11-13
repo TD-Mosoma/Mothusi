@@ -33,6 +33,10 @@ class Settings:
     smtp_password: str | None = None
     smtp_from: str | None = None
     database_url: str | None = None  # PostgreSQL (for example Supabase); the SQLite file at db_path is used without it
+    run_mode: str = "thread"  # "thread" on a long-lived server; "request" on serverless hosts such as Vercel
+    run_deadline_seconds: int = 280  # request mode: a run must finish inside one function invocation
+    max_upload_mb: float = 10.0
+    db_pool_max: int = 10
 
     @property
     def database(self) -> str | Path:
@@ -91,4 +95,18 @@ def load_settings() -> Settings:
         smtp_password=os.getenv("MOTHUSI_SMTP_PASSWORD") or None,
         smtp_from=os.getenv("MOTHUSI_SMTP_FROM") or None,
         database_url=normalise_database_url(os.getenv("MOTHUSI_DATABASE_URL")),
+        run_mode=_run_mode(),
+        run_deadline_seconds=int(os.getenv("MOTHUSI_RUN_DEADLINE", "280")),
+        max_upload_mb=float(os.getenv("MOTHUSI_MAX_UPLOAD_MB", "3" if os.getenv("VERCEL") else "10")),
+        db_pool_max=int(os.getenv("MOTHUSI_DB_POOL_MAX", "3" if os.getenv("VERCEL") else "10")),
     )
+
+
+def _run_mode() -> str:
+    """Vercel sets VERCEL=1 in its functions, where work cannot continue after a response is sent."""
+    mode = os.getenv("MOTHUSI_RUN_MODE", "auto").strip().lower()
+    if mode == "auto":
+        return "request" if os.getenv("VERCEL") else "thread"
+    if mode not in {"thread", "request"}:
+        raise ValueError(f"MOTHUSI_RUN_MODE must be auto, thread or request, not {mode!r}")
+    return mode

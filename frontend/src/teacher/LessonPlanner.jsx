@@ -176,7 +176,8 @@ export default function LessonPlanner() {
         {!done && !failed && (
           <p className="t-note">
             You can keep working. This lesson is saved in <Link to="/teacher/lessons">Lesson plans</Link> as <strong>Preparing…</strong> and
-            changes to <strong>Ready for review</strong> when it is done, even if you leave this page.
+            changes to <strong>Ready for review</strong> when it is done, even if you leave this page
+            {health?.run_mode === 'request' ? <>. <strong>Keep Mothusi open in this tab</strong> until it is ready.</> : '.'}
           </p>
         )}
 

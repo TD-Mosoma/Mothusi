@@ -1,12 +1,11 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTeacher } from './TeacherContext.jsx'
 import { MATERIAL_TYPES, unique, byGrade } from './curriculum.js'
 import { formatDate, formatSize } from './format.js'
-import { openResourceFile } from '../services/api.js'
+import { getHealth, openResourceFile } from '../services/api.js'
 
 const ACCEPT = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.md,.png,.jpg,.jpeg'
-const MAX_BYTES = 10 * 1024 * 1024
 
 export default function Resources() {
   const { profile, resources, resourcesError, addResource, deleteResource, notify } = useTeacher()
@@ -21,6 +20,8 @@ export default function Resources() {
   const [error, setError] = useState('')
   const [done, setDone] = useState('')
   const [uploading, setUploading] = useState(false)
+  const [maxMb, setMaxMb] = useState(10)
+  useEffect(() => { getHealth().then((h) => h.max_upload_mb && setMaxMb(h.max_upload_mb), () => {}) }, [])
   const [fGrade, setFGrade] = useState('all')
   const [fSubject, setFSubject] = useState('all')
 
@@ -29,8 +30,8 @@ export default function Resources() {
   const pickFile = (e) => {
     const file = e.target.files?.[0] || null
     setDone('')
-    if (file && file.size > MAX_BYTES) {
-      setError('That file is larger than 10 MB. Choose a smaller file.')
+    if (file && file.size > maxMb * 1024 * 1024) {
+      setError(`That file is larger than ${maxMb} MB. Choose a smaller file.`)
       e.target.value = ''
       set('file', null)
       return
@@ -135,7 +136,7 @@ export default function Resources() {
 
         <label className="t-field">File
           <input ref={fileRef} type="file" accept={ACCEPT} onChange={pickFile} />
-          <span className="t-hint">PDF, Word, PowerPoint, Excel, text or image files up to 10 MB. Mothusi can read the text of PDF, Word (.docx) and text files.</span>
+          <span className="t-hint">PDF, Word, PowerPoint, Excel, text or image files up to {maxMb} MB. Mothusi can read the text of PDF, Word (.docx) and text files.</span>
         </label>
 
         {error && <p className="t-error" role="alert">{error}</p>}

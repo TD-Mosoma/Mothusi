@@ -21,7 +21,9 @@ CREATE TABLE IF NOT EXISTS runs (
     error TEXT,
     approved_at TEXT,
     owner_id TEXT,
-    class_id TEXT
+    class_id TEXT,
+    job_json TEXT,
+    claimed_at TEXT
 );
 CREATE TABLE IF NOT EXISTS events (
     run_id TEXT NOT NULL,
@@ -50,7 +52,7 @@ CREATE INDEX IF NOT EXISTS feedback_learner ON feedback (learner_id);
 """
 
 # Columns added after the first release; older databases are upgraded in place.
-MIGRATIONS = {"runs": ["owner_id TEXT", "class_id TEXT"], "feedback": ["teacher_id TEXT"]}
+MIGRATIONS = {"runs": ["owner_id TEXT", "class_id TEXT", "job_json TEXT", "claimed_at TEXT"], "feedback": ["teacher_id TEXT"]}
 
 
 class Store:
@@ -66,12 +68,36 @@ class Store:
 
     def create_run(self, *, run_id: str, kind: str, title: str, request: dict, model: str,
                    parent_run_id: str | None = None, lesson_id: str | None = None,
-                   owner_id: str | None = None, class_id: str | None = None) -> None:
+                   owner_id: str | None = None, class_id: str | None = None, job: dict | None = None,
+                   claimed: bool = True) -> None:
+        now = utc_now()
         self.db.run(
             "INSERT INTO runs (id, kind, status, title, created_at, parent_run_id, lesson_id, model, request_json,"
-            " owner_id, class_id) VALUES (?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?)",
-            (run_id, kind, title, utc_now(), parent_run_id, lesson_id, model, json.dumps(request), owner_id, class_id),
+            " owner_id, class_id, job_json, claimed_at) VALUES (?, ?, 'running', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (run_id, kind, title, now, parent_run_id, lesson_id, model, json.dumps(request), owner_id, class_id,
+             json.dumps(job) if job is not None else None, now if claimed else None),
         )
+
+    def claim_run(self, run_id: str) -> bool:
+        """Mark a saved run as started. Only the first caller wins, so a run never executes twice."""
+        return self.db.run("UPDATE runs SET claimed_at = ? WHERE id = ? AND status = 'running' AND claimed_at IS NULL",
+                           (utc_now(), run_id)) > 0
+
+    def run_status(self, run_id: str) -> str | None:
+        row = self.db.one("SELECT status FROM runs WHERE id = ?", (run_id,))
+        return row["status"] if row else None
+
+    def expire_stale_runs(self, unclaimed_before: str, claimed_before: str) -> int:
+        """Runs that never started, or started but stopped reporting (the server or browser went away)."""
+        return self.db.run(
+            "UPDATE runs SET status = 'failed', finished_at = ?, error = ? WHERE status = 'running' AND"
+            " ((claimed_at IS NULL AND created_at < ?) OR (claimed_at IS NOT NULL AND claimed_at < ?))",
+            (utc_now(), "This run stopped before it finished. Please try again.", unclaimed_before, claimed_before),
+        )
+
+    def fail_if_running(self, run_id: str, message: str) -> bool:
+        return self.db.run("UPDATE runs SET status = 'failed', finished_at = ?, error = ? WHERE id = ? AND status = 'running'",
+                           (utc_now(), message, run_id)) > 0
 
     def finish_run(self, run_id: str, status: str, result: dict | None = None, error: str | None = None) -> None:
         self.db.run(
@@ -125,6 +151,10 @@ class Store:
             (event.run_id, event.seq, event.model_dump_json()),
         )
 
+    def events_since(self, run_id: str, after_seq: int) -> list[Event]:
+        rows = self.db.all("SELECT event_json FROM events WHERE run_id = ? AND seq > ? ORDER BY seq", (run_id, after_seq))
+        return [Event.model_validate_json(r["event_json"]) for r in rows]
+
     def events(self, run_id: str) -> list[Event]:
         rows = self.db.all("SELECT event_json FROM events WHERE run_id = ? ORDER BY seq", (run_id,))
         return [Event.model_validate_json(r["event_json"]) for r in rows]
@@ -170,6 +200,7 @@ def _run_row(row: dict[str, Any], include_payload: bool = True) -> dict[str, Any
         "class_id": row["class_id"],
     }
     if include_payload:
+        run["job"] = json.loads(row["job_json"]) if row.get("job_json") else None
         run["request"] = json.loads(row["request_json"])
         run["result"] = json.loads(row["result_json"]) if row["result_json"] else None
     return run

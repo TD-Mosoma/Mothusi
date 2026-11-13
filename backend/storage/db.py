@@ -9,6 +9,7 @@ databases are handled here:
 - adding a column to an existing table (`add_column`).
 """
 
+import os
 import re
 import sqlite3
 import threading
@@ -66,14 +67,15 @@ class Tx:
 
 
 class Database:
-    def __init__(self, target: str | Path):
+    def __init__(self, target: str | Path, pool_max: int = 10):
         self.target = str(target)
         if is_postgres_url(target):
             if psycopg is None:
                 raise RuntimeError("PostgreSQL needs the psycopg package: uv add 'psycopg[binary]' psycopg-pool")
             self.dialect = "postgres"
             # prepare_threshold=None keeps it working through Supabase's transaction pooler as well.
-            self._pool = ConnectionPool(self.target, min_size=1, max_size=10, open=True, timeout=30,
+            # Small pools on serverless hosts: many instances may each hold one.
+            self._pool = ConnectionPool(self.target, min_size=1, max_size=max(1, pool_max), open=True, timeout=30,
                                         kwargs={"prepare_threshold": None, "row_factory": dict_row})
         else:
             self.dialect = "sqlite"
@@ -141,10 +143,12 @@ _shared: dict[str, Database] = {}
 _shared_lock = threading.Lock()
 
 
-def connect(target: str | Path) -> Database:
+def connect(target: str | Path, pool_max: int | None = None) -> Database:
     """The one Database for a target, shared by every store in the process."""
     key = str(target)
     with _shared_lock:
         if key not in _shared:
-            _shared[key] = Database(target)
+            if pool_max is None:
+                pool_max = int(os.getenv("MOTHUSI_DB_POOL_MAX", "3" if os.getenv("VERCEL") else "10"))
+            _shared[key] = Database(target, pool_max)
         return _shared[key]

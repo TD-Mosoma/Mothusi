@@ -4,9 +4,11 @@ import binascii
 import json
 import re
 import secrets
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
@@ -159,6 +161,49 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     runs = RunManager(settings, store)
     orchestrator = Orchestrator(settings, store, activity)
 
+    def build_job(run: dict[str, Any]):
+        """Rebuild a saved run's work from what was stored, so any server instance can execute it."""
+        spec = run.get("job") or {}
+        parent = store.get_run(run["parent_run_id"]) if run.get("parent_run_id") else None
+        kind = run["kind"]
+        if kind == "plan":
+            req = LessonRequest.model_validate(run["request"])
+            return (lambda trace, llm: orchestrator.plan_lesson(trace, llm, req, spec.get("owner_id"))), True
+        if kind == "replan":
+            change = ReplanRequest.model_validate(spec["change"])
+            return (lambda trace, llm: orchestrator.replan(trace, llm, parent, change)), True
+        if kind == "recheck":
+            edit = RecheckRequest.model_validate(spec["edit"])
+            return (lambda trace, llm: orchestrator.recheck(trace, llm, parent, edit)), True
+        if kind == "feedback":
+            fb = FeedbackRequest.model_validate(run["request"])
+            return (lambda trace, llm: orchestrator.record_feedback(trace, fb, parent)), False
+        if kind == "explain":
+            ask = ExplainRequest.model_validate(run["request"])
+            return (lambda trace, llm: orchestrator.explain(trace, llm, parent, ask)), True
+        raise ValueError(f"Unknown run kind {kind!r}")
+
+    runs.job_builder = build_job
+
+    def expire_stale_runs() -> None:
+        """Request mode: a run whose browser never started it, or that outlived its function, ends as failed."""
+        if settings.run_mode != "request":
+            return
+        now = datetime.now(timezone.utc)
+        stamp = lambda d: d.isoformat(timespec="milliseconds").replace("+00:00", "Z")  # noqa: E731
+        store.expire_stale_runs(stamp(now - timedelta(minutes=10)),
+                                stamp(now - timedelta(seconds=settings.run_deadline_seconds + 120)))
+
+    async def execute(run_id: str) -> dict:
+        if settings.run_mode != "request":
+            return {"status": "started"}  # thread mode: the run began when it was created
+        try:
+            outcome = await asyncio.wait_for(run_in_threadpool(runs.execute, run_id), settings.run_deadline_seconds)
+        except asyncio.TimeoutError:
+            store.fail_if_running(run_id, "Mothusi ran out of time on this server. Try again, or use practice mode.")
+            outcome = "timeout"
+        return {"status": outcome}
+
     app = FastAPI(title="Mothusi API", version="1.0.0",
                   description="Multi-agent classroom colleague for Grades 1–4 teachers.")
     app.add_middleware(CORSMiddleware, allow_origins=settings.cors_origins, allow_methods=["*"], allow_headers=["*"])
@@ -187,6 +232,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     def owned_run(run_id: str, account: dict[str, Any]) -> dict:
         """A teacher only ever sees their own runs; anyone else's are reported as missing."""
+        expire_stale_runs()
         run = store.get_run(run_id)
         if run is None or run["owner_id"] != account["id"]:
             raise HTTPException(404, "Run not found.")
@@ -352,7 +398,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.get("/api/health")
     def health():
         llm = build_client(settings)
-        return {"status": "ok", "model": llm.label, "live": llm.live, "can_translate": llm.can_translate}
+        return {"status": "ok", "model": llm.label, "live": llm.live, "can_translate": llm.can_translate,
+                "run_mode": settings.run_mode, "max_upload_mb": settings.max_upload_mb}
 
     @app.get("/api/graph")
     def graph():
@@ -369,6 +416,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         title = f"{req.grade} {req.subject}: {req.topic}"
         run_id = runs.start(kind="plan", title=title, request=req.model_dump(), offline=req.offline,
                             lesson_id=req.lesson_id, owner_id=account["id"], class_id=req.class_id,
+                            spec={"owner_id": account["id"]},
                             job=lambda trace, llm: orchestrator.plan_lesson(trace, llm, req, account["id"]))
         return {"run_id": run_id}
 
@@ -382,6 +430,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                             offline=bool(request.get("offline")), parent_run_id=run_id,
                             lesson_id=change.lesson_id or parent["lesson_id"],
                             owner_id=account["id"], class_id=parent["class_id"],
+                            spec={"change": change.model_dump()},
                             job=lambda trace, llm: orchestrator.replan(trace, llm, parent, change))
         return {"run_id": new_id}
 
@@ -392,6 +441,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                             request={**parent["request"], "adaptations": [a.model_dump() for a in edit.adaptations]},
                             offline=bool(parent["request"].get("offline")), parent_run_id=run_id,
                             lesson_id=parent["lesson_id"], owner_id=account["id"], class_id=parent["class_id"],
+                            spec={"edit": edit.model_dump()},
                             job=lambda trace, llm: orchestrator.recheck(trace, llm, parent, edit))
         return {"run_id": new_id}
 
@@ -403,6 +453,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/runs")
     def list_runs(limit: int = Query(50, ge=1, le=200), account: dict[str, Any] = Depends(teacher_account)):
+        expire_stale_runs()
         return {"runs": store.list_runs(account["id"], limit)}
 
     @app.get("/api/runs/{run_id}")
@@ -413,37 +464,49 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         return run
 
     def event_stream(run_id: str, request: Request) -> StreamingResponse:
-        trace = runs.traces.get(run_id)
         try:
             start = int(request.headers.get("last-event-id", "0"))
         except ValueError:
             start = 0
 
         async def generate():
-            if trace is None:
-                for event in store.events(run_id)[start:]:
-                    yield _sse(event)
-                yield "event: end\ndata: {}\n\n"
-                return
             index, idle = start, 0.0
             while True:
                 if await request.is_disconnected():
                     return
-                fresh = trace.since(index)
+                trace = runs.traces.get(run_id)
+                if trace is not None:  # the run is executing in this process: stream from memory
+                    finished = trace.done  # read first: once done, no event can follow what we collect next
+                    fresh = trace.since(index)
+                    wait = 0.15
+                else:  # it runs elsewhere, or has finished: stream what has been saved
+                    expire_stale_runs()
+                    status = await run_in_threadpool(store.run_status, run_id)
+                    fresh = await run_in_threadpool(store.events_since, run_id, index)
+                    finished = status != "running"
+                    if finished:  # the final event is always saved before the run is marked finished
+                        fresh = await run_in_threadpool(store.events_since, run_id, index)
+                    wait = 0.6
                 for event in fresh:
                     yield _sse(event)
-                index += len(fresh)
-                if trace.done and not trace.since(index):
+                if fresh:
+                    index = fresh[-1].seq
+                if finished:
                     yield "event: end\ndata: {}\n\n"
                     return
-                idle = 0.0 if fresh else idle + 0.15
+                idle = 0.0 if fresh else idle + wait
                 if idle >= 15:
                     yield ": keep-alive\n\n"
                     idle = 0.0
-                await asyncio.sleep(0.15)
+                await asyncio.sleep(wait)
 
         return StreamingResponse(generate(), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+    @app.post("/api/runs/{run_id}/execute")
+    async def execute_run(run_id: str, account: dict[str, Any] = Depends(teacher_account)):
+        owned_run(run_id, account)
+        return await execute(run_id)
 
     @app.get("/api/runs/{run_id}/events")
     async def stream_events(run_id: str, request: Request, account: dict[str, Any] = Depends(teacher_account)):
@@ -514,8 +577,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             raise HTTPException(422, "The file could not be uploaded. Please try again.") from exc
         if not data:
             raise HTTPException(422, "That file is empty.")
-        if len(data) > MAX_RESOURCE_BYTES:
-            raise HTTPException(413, "That file is larger than 10 MB. Choose a smaller file.")
+        limit = min(MAX_RESOURCE_BYTES, int(settings.max_upload_mb * 1024 * 1024))
+        if len(data) > limit:
+            raise HTTPException(413, f"That file is larger than {settings.max_upload_mb:g} MB. Choose a smaller file.")
         text, note = "", None
         if req.filename.lower().endswith(READABLE_TYPES):
             try:
@@ -682,8 +746,14 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/api/learner/runs/{run_id}")
     def learner_run(run_id: str, account: dict[str, Any] = Depends(learner_account)):
+        expire_stale_runs()
         run = learner_explain_run(run_id, account)
         return {"id": run["id"], "status": run["status"], "error": run["error"], "result": run["result"]}
+
+    @app.post("/api/learner/runs/{run_id}/execute")
+    async def learner_execute(run_id: str, account: dict[str, Any] = Depends(learner_account)):
+        learner_explain_run(run_id, account)
+        return await execute(run_id)
 
     @app.get("/api/learner/runs/{run_id}/events")
     async def learner_run_events(run_id: str, request: Request, account: dict[str, Any] = Depends(learner_account)):

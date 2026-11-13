@@ -15,28 +15,64 @@ Job = Callable[[RunTrace, LLMClient], dict]
 
 
 class RunManager:
-    """Runs agent workflows in the background and keeps their live traces for streaming."""
+    """Runs agent workflows and keeps their live traces for streaming.
+
+    Two modes (settings.run_mode):
+    - "thread": a run starts in a background thread as soon as it is created. For a long-lived server.
+    - "request": a run is only saved when it is created; the browser then calls the execute endpoint, and the run
+      happens inside that request. For serverless hosts such as Vercel, which pause a function once it has replied.
+    In both modes every event is saved to the database as it happens, so any server instance can stream it.
+    """
 
     def __init__(self, settings: Settings, store: Store, max_parallel_runs: int = 4):
         self.settings = settings
         self.store = store
         self.traces: dict[str, RunTrace] = {}
+        self.job_builder: Callable[[dict], tuple[Job, bool]] | None = None  # set by the API: run -> (job, uses_model)
         self._pool = ThreadPoolExecutor(max_workers=max_parallel_runs, thread_name_prefix="mothusi-run")
-        store.mark_interrupted_runs()
+        if settings.run_mode == "thread":
+            store.mark_interrupted_runs()  # only this process runs agents, so anything unfinished was interrupted
 
-    def start(self, *, kind: str, title: str, request: dict, job: Job, offline: bool = False,
-              uses_model: bool = True, parent_run_id: str | None = None, lesson_id: str | None = None,
-              owner_id: str | None = None, class_id: str | None = None) -> str:
+    def start(self, *, kind: str, title: str, request: dict, job: Job, spec: dict | None = None,
+              offline: bool = False, uses_model: bool = True, parent_run_id: str | None = None,
+              lesson_id: str | None = None, owner_id: str | None = None, class_id: str | None = None) -> str:
         llm = build_client(self.settings, offline=offline or not uses_model)
         model = llm.label if uses_model else "none"
         run_id = uuid.uuid4().hex[:12]
+        threaded = self.settings.run_mode == "thread"
         self.store.create_run(run_id=run_id, kind=kind, title=title, request=request, model=model,
                               parent_run_id=parent_run_id, lesson_id=lesson_id, owner_id=owner_id,
-                              class_id=class_id)
+                              class_id=class_id, job={**(spec or {}), "offline": offline, "uses_model": uses_model},
+                              claimed=threaded)
+        if threaded:
+            trace = RunTrace(run_id, on_event=self.store.add_event)
+            self.traces[run_id] = trace
+            self._pool.submit(self._execute, run_id, kind, title, trace, llm, job, uses_model)
+        return run_id
+
+    def execute(self, run_id: str) -> str:
+        """Run a saved run here and now (request mode). Returns "done", or "taken" if it already started elsewhere."""
+        if not self.store.claim_run(run_id):
+            return "taken"
+        run = self.store.get_run(run_id)
+        spec = run.get("job") or {}
         trace = RunTrace(run_id, on_event=self.store.add_event)
         self.traces[run_id] = trace
-        self._pool.submit(self._execute, run_id, kind, title, trace, llm, job, uses_model)
-        return run_id
+        try:
+            if self.job_builder is None:
+                raise RuntimeError("No job builder registered")
+            job, uses_model = self.job_builder(run)
+            llm = build_client(self.settings, offline=bool(spec.get("offline")) or not uses_model)
+        except Exception as exc:  # noqa: BLE001 - the run must end with a visible outcome
+            log.exception("Run %s could not start", run_id)
+            self._fail(run_id, trace, f"Mothusi could not start this run ({type(exc).__name__}).")
+            trace.done = True
+            return "done"
+        try:
+            self._execute(run_id, run["kind"], run["title"], trace, llm, job, uses_model)
+        finally:
+            self.traces.pop(run_id, None)
+        return "done"
 
     def _execute(self, run_id: str, kind: str, title: str, trace: RunTrace, llm: LLMClient, job: Job,
                  uses_model: bool) -> None:
@@ -57,14 +93,16 @@ class RunManager:
             self._fail(run_id, trace, f"Something went wrong inside Mothusi ({type(exc).__name__}). Nothing was saved.")
         else:
             status = "completed_with_warnings" if result.get("warnings") else "completed"
-            self.store.finish_run(run_id, status, result=result)
+            # The final event is saved before the run is marked finished, so a stream that stops when the run
+            # finishes has always seen it.
             trace.emit("Orchestrator", "run_completed",
                        "Finished" + (f" with {len(result['warnings'])} item(s) for your attention" if result.get("warnings") else ""),
                        f"Total time {trace.elapsed_ms() / 1000:.1f}s",
                        {"status": status, "stats": result.get("pack", {}).get("stats")})
+            self.store.finish_run(run_id, status, result=result)
         finally:
             trace.done = True
 
     def _fail(self, run_id: str, trace: RunTrace, message: str) -> None:
-        self.store.finish_run(run_id, "failed", error=message)
         trace.emit("Orchestrator", "run_failed", "Stopped safely", message)
+        self.store.finish_run(run_id, "failed", error=message)

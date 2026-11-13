@@ -65,16 +65,23 @@ export const getGraph = () => request('/api/graph')
 export const listRuns = (limit = 50) => request(`/api/runs?limit=${limit}`).then((r) => r.runs)
 export const getRun = (id, { events = false } = {}) => request(`/api/runs/${id}${events ? '?events=true' : ''}`)
 
-export const startPlan = (payload) => request('/api/runs', { method: 'POST', body: payload }).then((r) => r.run_id)
+// On serverless hosts (Vercel) a run happens inside this request, which the browser keeps open while the agents
+// work; moving between pages inside Mothusi does not interrupt it. On a long-lived server it returns at once.
+export const executeRun = (runId, { learner = false } = {}) => {
+  request(`/api/${learner ? 'learner/' : ''}runs/${runId}/execute`, { method: 'POST' }).catch(() => {})
+  return runId
+}
+
+export const startPlan = (payload) => request('/api/runs', { method: 'POST', body: payload }).then((r) => executeRun(r.run_id))
 export const startReplan = (runId, { constraints, teacherNote = '', lessonId }) =>
   request(`/api/runs/${runId}/replan`, {
     method: 'POST', body: { constraints: constraints || null, teacher_note: teacherNote, lesson_id: lessonId },
-  }).then((r) => r.run_id)
+  }).then((r) => executeRun(r.run_id))
 export const startRecheck = (runId, adaptations) =>
   request(`/api/runs/${runId}/recheck`, { method: 'POST', body: { adaptations: adaptations.map(toBackendAdaptation) } })
-    .then((r) => r.run_id)
+    .then((r) => executeRun(r.run_id))
 export const approveRun = (runId) => request(`/api/runs/${runId}/approve`, { method: 'POST' })
-export const submitFeedback = (payload) => request('/api/feedback', { method: 'POST', body: payload }).then((r) => r.run_id)
+export const submitFeedback = (payload) => request('/api/feedback', { method: 'POST', body: payload }).then((r) => executeRun(r.run_id))
 export const getMemory = (learnerIds) =>
   request(`/api/memory?${learnerIds.map((id) => `learner_id=${encodeURIComponent(id)}`).join('&')}`).then((r) => r.feedback)
 
@@ -92,7 +99,7 @@ export const checkJoinCode = (code) => request('/api/auth/check-code', { method:
 export const askForExplanation = ({ runId, language, style, interests = [] }) =>
   request('/api/learner/explain', {
     method: 'POST', body: { run_id: runId, language: language || 'en', style, interests },
-  }).then((r) => r.run_id)
+  }).then((r) => executeRun(r.run_id, { learner: true }))
 
 export const recordActivity = (runId, kind, data = {}) =>
   request('/api/learner/activity', { method: 'POST', body: { run_id: runId, kind, data } }).catch(() => null)

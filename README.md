@@ -123,6 +123,38 @@ backend itself, not by Supabase Auth or Storage. Run one backend instance: live 
 the process that runs the agents. To run the tests against PostgreSQL, set `MOTHUSI_TEST_DATABASE_URL` to an empty
 throwaway database (never the production one: the tests empty its tables).
 
+### Deploying on Vercel
+
+Mothusi deploys as **two Vercel projects from this repository**: the website (`frontend/`) and the API (`backend/`).
+Both read their settings from the `vercel.json` in their folder.
+
+How the agents run on Vercel: Vercel pauses a function as soon as it has replied, so the backend switches itself to
+*request mode* (it detects Vercel). Creating a lesson saves it; the browser then calls `/execute`, and the agents run
+inside that request, for up to 5 minutes on the free Hobby plan. Moving between pages inside Mothusi is fine, but
+**closing the tab stops a lesson that is still being prepared**; it is then marked "Not finished" and can be tried
+again. Live progress is read from the database, so it works whichever server instance answers. On Vercel, uploads are
+limited to 3 MB (Vercel accepts at most 4.5 MB per request).
+
+Before the first deploy, stop tracking the installed packages and build output (they are in `.gitignore` now):
+`git rm -r --cached frontend/node_modules frontend/dist`, then commit and push.
+
+1. **Backend project.** In Vercel: Add New → Project → import the repository → Root Directory `backend`.
+   Environment variables:
+   - `NVIDIA_API_KEY`: your key
+   - `MOTHUSI_DATABASE_URL`: the Supabase **Transaction pooler** URI (port `6543`, built for serverless), with your
+     database password: `postgresql://postgres.<ref>:<password>@aws-1-eu-west-2.pooler.supabase.com:6543/postgres?sslmode=require`
+   - `MOTHUSI_CORS_ORIGINS`: the website's address, for example `https://mothusi.vercel.app`
+   - `MOTHUSI_PUBLIC_URL`: the same address (used in password-reset emails)
+   - optional: `MOTHUSI_LLM_TIMEOUT=90` so a slow model call cannot use up the 5 minutes; the `MOTHUSI_SMTP_*`
+     settings for reset emails
+2. **Frontend project.** Import the same repository again → Root Directory `frontend`. Environment variable:
+   `VITE_API_URL` = the backend's address, for example `https://mothusi-api.vercel.app` (no trailing slash).
+3. Deploy both. If you set the website address after the backend's first deploy, redeploy the backend so it picks up
+   `MOTHUSI_CORS_ORIGINS`.
+
+The API functions run in London (`lhr1`), next to the Supabase database. Schema changes go in `supabase/migrations/`
+and are applied with `supabase db push`; the backend also adds any missing tables and columns when it starts.
+
 ### Models
 
 | Setting | Default | Used for |

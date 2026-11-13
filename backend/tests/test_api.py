@@ -64,7 +64,8 @@ def wait(client, run_id):
 
 def test_health_reports_model(client):
     body = client.get("/api/health").json()
-    assert body == {"status": "ok", "model": "Offline demo model", "live": False, "can_translate": False}
+    assert body == {"status": "ok", "model": "Offline demo model", "live": False, "can_translate": False,
+                    "run_mode": "thread", "max_upload_mb": 10.0}
 
 
 def test_registration_login_and_role_access(client, learner_client):
