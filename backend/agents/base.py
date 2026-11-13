@@ -139,6 +139,9 @@ def describe_memory(memory: list[dict]) -> str:
     rows = []
     for m in memory[:12]:
         who = "whole class" if m["learner_id"] == WHOLE_CLASS else (m.get("learner_label") or m["learner_id"])
+        if m.get("outcome") == "Evidence":
+            rows.append(f"- {who}: from their own practice ({m.get('topic') or 'earlier lessons'}): {m.get('note')}")
+            continue
         what = m.get("strategy") or m.get("instruction") or "a strategy"
         note = f" Teacher's note: {m['note']}" if m.get("note") else ""
         rows.append(f"- {who}: \"{what}\" — {m['outcome']} ({m.get('topic') or 'earlier lesson'}).{note}")

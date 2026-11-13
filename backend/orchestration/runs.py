@@ -25,12 +25,14 @@ class RunManager:
         store.mark_interrupted_runs()
 
     def start(self, *, kind: str, title: str, request: dict, job: Job, offline: bool = False,
-              uses_model: bool = True, parent_run_id: str | None = None, lesson_id: str | None = None) -> str:
+              uses_model: bool = True, parent_run_id: str | None = None, lesson_id: str | None = None,
+              owner_id: str | None = None, class_id: str | None = None) -> str:
         llm = build_client(self.settings, offline=offline or not uses_model)
         model = llm.label if uses_model else "none"
         run_id = uuid.uuid4().hex[:12]
         self.store.create_run(run_id=run_id, kind=kind, title=title, request=request, model=model,
-                              parent_run_id=parent_run_id, lesson_id=lesson_id)
+                              parent_run_id=parent_run_id, lesson_id=lesson_id, owner_id=owner_id,
+                              class_id=class_id)
         trace = RunTrace(run_id, on_event=self.store.add_event)
         self.traces[run_id] = trace
         self._pool.submit(self._execute, run_id, kind, title, trace, llm, job, uses_model)

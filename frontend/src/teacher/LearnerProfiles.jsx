@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useTeacher } from './TeacherContext.jsx'
+import { useActiveClasses, useTeacher } from './TeacherContext.jsx'
+import { ClassCodeCard, LearnerCodeCell, useRoster } from './ClassCodes.jsx'
 import { LANGUAGES, languageLabel } from './curriculum.js'
 
 function ProfileForm({ initial, onSave, onCancel, onRemove }) {
@@ -46,8 +47,8 @@ function ProfileForm({ initial, onSave, onCancel, onRemove }) {
 }
 
 export default function LearnerProfiles() {
-  const { classes, learners, addLearner, updateLearner, removeLearner } = useTeacher()
-  const active = classes.filter((c) => !c.archived)
+  const { learners, addLearner, updateLearner, removeLearner } = useTeacher()
+  const active = useActiveClasses()
 
   const [classId, setClassId] = useState(active[0]?.id || '')
   const [query, setQuery] = useState('')
@@ -58,15 +59,17 @@ export default function LearnerProfiles() {
     (l) => l.classId === classId && (!q || l.name.toLowerCase().includes(q) || l.code.toLowerCase().includes(q))
   )
   const editingLearner = learners.find((l) => l.id === editing)
+  const cls = active.find((c) => c.id === classId)
+  const rosterApi = useRoster()
 
   return (
     <div className="stack">
       <div className="t-page-head">
         <div>
-          <h1>Learner Profiles</h1>
-          <p className="muted">View learner support information relevant to planning inclusive lessons.</p>
+          <h1>Learners &amp; codes</h1>
+          <p className="muted">Support profiles for the learners you plan for, and the codes learners use to sign in.</p>
         </div>
-        <button type="button" className="btn" disabled={!classId} onClick={() => setEditing('new')}>+ Add profile</button>
+        <button type="button" className="btn" disabled={!classId} onClick={() => setEditing('new')}>Add profile</button>
       </div>
 
       {active.length === 0 ? (
@@ -84,24 +87,28 @@ export default function LearnerProfiles() {
             </label>
           </div>
 
+          {cls && <ClassCodeCard cls={cls} rosterApi={rosterApi} />}
+          {rosterApi.error && <p className="t-error" role="alert">{rosterApi.error}</p>}
+
           <section className="card">
             <div className="t-table-wrap">
-              <table className="t-table">
+              <table className="t-table t-stack-sm">
                 <thead>
-                  <tr><th>Learner</th><th>Strengths</th><th>Support that helps</th><th>Language</th><th>Action</th></tr>
+                  <tr><th>Learner</th><th>Strengths</th><th>Support that helps</th><th>Language</th><th>Sign-in</th><th>Action</th></tr>
                 </thead>
                 <tbody>
                   {rows.map((l) => (
                     <tr key={l.id}>
-                      <td>{l.name}<br /><span className="muted small-text">{l.code}</span></td>
-                      <td>{l.strengths || <span className="muted">Not added</span>}</td>
-                      <td>{l.support || <span className="muted">Not added</span>}</td>
-                      <td>{languageLabel(l.language || 'en')}</td>
+                      <td data-label="Learner">{l.name}<br /><span className="muted small-text">{l.code}</span></td>
+                      <td data-label="Strengths">{l.strengths || <span className="muted">Not added</span>}</td>
+                      <td data-label="Support that helps">{l.support || <span className="muted">Not added</span>}</td>
+                      <td data-label="Language">{languageLabel(l.language || 'en')}</td>
+                      <td data-label="Sign-in">{cls && <LearnerCodeCell cls={cls} learner={l} rosterApi={rosterApi} />}</td>
                       <td><button type="button" className="btn secondary small" onClick={() => setEditing(l.id)}>View / Edit</button></td>
                     </tr>
                   ))}
                   {rows.length === 0 && (
-                    <tr><td colSpan="5" className="muted">No learner profiles found for this class.</td></tr>
+                    <tr><td colSpan="6" className="muted">No learner profiles found for this class.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -123,10 +130,8 @@ export default function LearnerProfiles() {
               onSave={(data) => { updateLearner(editingLearner.id, data); setEditing(null) }}
               onCancel={() => setEditing(null)}
               onRemove={() => {
-                if (window.confirm(`Remove the profile for ${editingLearner.name}?`)) {
-                  removeLearner(editingLearner.id)
-                  setEditing(null)
-                }
+                removeLearner(editingLearner.id) // the toast offers Undo
+                setEditing(null)
               }}
             />
           )}
@@ -134,7 +139,8 @@ export default function LearnerProfiles() {
       )}
 
       <p className="t-note">
-        Safe profile design: only record what helps you teach. Access is limited to authorised staff.
+        Safe profile design: only record what helps you teach. Learners only see lessons you approve for their class,
+        and a personal code links one learner account to one profile.
       </p>
     </div>
   )

@@ -39,6 +39,7 @@ class LessonRequest(BaseModel):
     learners: list[LearnerProfile] = Field(default_factory=list, max_length=15)
     constraints: ClassroomConstraints
     lesson_id: str | None = Field(default=None, max_length=64)
+    class_id: str | None = Field(default=None, max_length=64)
     offline: bool = Field(default=False, description="Use the offline demo model instead of the live model")
 
     @model_validator(mode="after")
@@ -290,7 +291,7 @@ class RecheckRequest(BaseModel):
 
 class ExplainRequest(BaseModel):
     run_id: str
-    learner_code: str | None = Field(default=None, max_length=32)
+    learner_id: str | None = Field(default=None, max_length=64, description="Set by the server from the learner's link")
     language: LanguageCode = "en"
     style: Literal["simpler", "visual", "practical"] = "simpler"
     interests: list[str] = Field(default_factory=list, max_length=3)

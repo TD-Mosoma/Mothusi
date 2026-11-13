@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import * as api from './api.js'
 import { cacheAccountProfile, clearAccountProfile, registerLearnerProfile, registerTeacherProfile } from './profile.js'
 
@@ -52,15 +53,31 @@ export function AuthProvider({ children }) {
     } finally {
       api.clearAuthToken()
       if (role) clearAccountProfile(role)
+      // Lessons kept for offline use belong to this account only.
+      if ('caches' in window) caches.delete('mothusi-api').catch(() => {})
       setUser(null)
     }
   }
 
   const value = useMemo(() => ({
-    user, loading, error, signIn, signOut, createLearnerAccount, createTeacherAccount,
+    user, loading, error, signIn, signOut, createLearnerAccount, createTeacherAccount, startSession: acceptSession,
   }), [user, loading, error])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+// The one way to log out from either portal: end the session, then go to the home page.
+export function useSignOut() {
+  const { signOut } = useAuth()
+  const navigate = useNavigate()
+  return async () => {
+    try {
+      await signOut()
+      navigate('/', { replace: true })
+    } catch (error) {
+      navigate('/login', { replace: true, state: { message: error.message } })
+    }
+  }
 }
 
 export function useAuth() {

@@ -11,7 +11,7 @@ export default function LessonEdit() {
   const { lessons, updateLesson } = useTeacher()
   const lesson = lessons.find((l) => l.id === id)
 
-  const adaptations = lesson ? lesson.adaptations.filter((a) => !a.removed) : []
+  const adaptations = (lesson?.adaptations || []).filter((a) => !a.removed)
   const [adaptId, setAdaptId] = useState(adaptations[0]?.id || '')
   const [changeType, setChangeType] = useState(CHANGE_TYPES[0])
   const [text, setText] = useState(adaptations[0]?.text || '')
@@ -24,6 +24,15 @@ export default function LessonEdit() {
       <div className="stack">
         <h1>Lesson not found</h1>
         <p><Link to="/teacher/lessons">Back to lesson plans</Link></p>
+      </div>
+    )
+  }
+  if (!lesson.adaptations) {
+    return (
+      <div className="stack">
+        <h1>{lesson.topic}</h1>
+        <p className="muted">This lesson is not ready yet.</p>
+        <p><Link to={`/teacher/lessons/${lesson.id}`}>Back to the lesson</Link></p>
       </div>
     )
   }

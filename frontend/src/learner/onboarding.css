@@ -68,10 +68,11 @@
 .ob-account-fields { display: grid; gap: var(--s-4); }
 .ob-account-fields label { display: grid; gap: var(--s-2); color: var(--ink); font: 500 0.95rem var(--font-display); }
 .ob-account-fields .ob-input { font-size: 1.05rem; text-align: left; }
-.ob-error { color: #8E1B12; }
+.ob-error { color: var(--danger-ink); }
 .ob-login-link { margin: var(--s-4) auto 0; }
 
 @media (max-width: 480px) {
   .ob-card { padding: var(--s-5) var(--s-4); }
   .ob-card h1 { font-size: 1.5rem; }
-}
+}.ob-brand { display: flex; justify-content: center; margin-bottom: var(--s-2); }
+.ob-brand .brand-lockup { --logo-h: 40px; }

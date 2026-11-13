@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../services/AuthContext.jsx'
+import { checkJoinCode } from '../services/api.js'
+import BrandLogo from '../components/BrandLogo.jsx'
 import './onboarding.css'
 
 import { GRADES, LANGUAGES } from '../teacher/curriculum.js'
@@ -29,6 +31,8 @@ export default function LearnerOnboarding() {
   })
   const [registerError, setRegisterError] = useState('')
   const [saving, setSaving] = useState(false)
+  const [codeError, setCodeError] = useState('')
+  const [checking, setChecking] = useState(false)
   const lang = data.language || 'en'
 
   const set = (key, value) => setData((d) => ({ ...d, [key]: value }))
@@ -94,17 +98,27 @@ export default function LearnerOnboarding() {
       ),
     },
     {
-      title: 'Do you have a learner code?',
-      hint: 'Your teacher can give you a code like L-003. It helps Mothusi show your own lesson. You can skip this.',
+      title: 'Do you have a code from your teacher?',
+      hint: 'Your teacher gives you a code like ABCD-2345 so you can see your class lessons. You can skip this and add it later.',
       valid: true,
+      check: async () => {
+        if (!data.code) return true
+        const valid = await checkJoinCode(data.code).catch(() => false)
+        if (!valid) setCodeError(translate(lang, 'That code is not valid. Check it with your teacher, or leave it empty and add it later.'))
+        return valid
+      },
       body: (
-        <input
-          className="ob-input"
-          value={data.code}
-          onChange={(e) => set('code', e.target.value.toUpperCase().trim())}
-          placeholder="L-000"
-          aria-label={translate(lang, 'Learner code')}
-        />
+        <>
+          <input
+            className="ob-input"
+            value={data.code}
+            onChange={(e) => { set('code', e.target.value.toUpperCase().trim()); setCodeError('') }}
+            placeholder="ABCD-2345"
+            maxLength={12}
+            aria-label={translate(lang, 'Code from your teacher')}
+          />
+          {codeError && <p className="ob-error" role="alert">{codeError}</p>}
+        </>
       ),
     },
     {
@@ -182,6 +196,7 @@ export default function LearnerOnboarding() {
   return (
     <div className="theme-learner ob-shell">
       <div className="ob-card">
+        <Link to="/" className="ob-brand" aria-label="Mothusi home"><BrandLogo /></Link>
         <p className="ob-login-link">Already registered? <Link to="/login">Log in</Link></p>
         {!isDone && (
           <>
@@ -205,7 +220,15 @@ export default function LearnerOnboarding() {
               {step > 0
                 ? <button className="btn secondary" onClick={() => setStep(step - 1)}>{translate(lang, 'Back')}</button>
                 : <span />}
-              <button className="btn" disabled={!current.valid} onClick={() => setStep(step + 1)}>{translate(lang, 'Next')}</button>
+              <button className="btn" disabled={!current.valid || checking} onClick={async () => {
+                if (current.check) {
+                  setChecking(true)
+                  const ok = await current.check()
+                  setChecking(false)
+                  if (!ok) return
+                }
+                setStep(step + 1)
+              }}>{translate(lang, 'Next')}</button>
             </div>
           </>
         )}

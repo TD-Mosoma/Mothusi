@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
-import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
-import { useAuth } from '../services/AuthContext.jsx'
+import { Suspense, useEffect, useState } from 'react'
+import { Outlet, NavLink, Link, useLocation } from 'react-router-dom'
+import { useSignOut } from '../services/AuthContext.jsx'
 import LanguagePicker from '../components/LanguagePicker.jsx'
-import logo from '../assets/logo.jpeg'
+import BrandLogo from '../components/BrandLogo.jsx'
 import './learner.css'
 import { getLearnerProfile, saveLearnerProfile } from '../services/profile.js'
 import { getLearningPreferences } from '../services/learnerPortal.js'
@@ -21,8 +21,7 @@ const isMobile = () => window.matchMedia('(max-width: 860px)').matches
 
 export default function LearnerLayout() {
   const location = useLocation()
-  const navigate = useNavigate()
-  const { signOut: authSignOut } = useAuth()
+  const signOut = useSignOut()
   const [menuOpen, setMenuOpen] = useState(() => !isMobile())
   const [profile, setProfile] = useState(getLearnerProfile)
   const [lang, setLangState] = useState(profile?.language || 'en')
@@ -43,14 +42,6 @@ export default function LearnerLayout() {
     }
   }
 
-  const signOut = async () => {
-    try {
-      await authSignOut()
-      navigate('/', { replace: true })
-    } catch (error) {
-      navigate('/login', { replace: true, state: { message: error.message } })
-    }
-  }
 
   useEffect(() => {
     if (isMobile()) setMenuOpen(false)
@@ -82,7 +73,7 @@ export default function LearnerLayout() {
           <span /><span /><span />
         </button>
         <Link to="/learner" className="l-logo" aria-label={translate(lang, 'Mothusi learner portal')}>
-          <img src={logo} alt={translate(lang, 'Mothusi: your intelligent classroom colleague')} />
+          <BrandLogo />
         </Link>
         <div className="l-topbar-right">
           <span className="l-top-greeting">{firstName ? translate(lang, 'Hi, {name}!', { name: firstName }) : translate(lang, 'Your learning space')}</span>
@@ -109,12 +100,14 @@ export default function LearnerLayout() {
               <span><strong>{firstName || 'Learner'}</strong><small>{translate(lang, 'My profile')}</small></span>
               <span aria-hidden="true">›</span>
             </NavLink>
-            <button type="button" className="l-signout" onClick={signOut}>{translate(lang, 'Sign out')}</button>
+            <button type="button" className="l-signout" onClick={signOut}>{translate(lang, 'Log out')}</button>
           </div>
         </aside>
         {menuOpen && <div className="l-backdrop" onClick={() => setMenuOpen(false)} aria-hidden="true" />}
         <main className="l-main">
-          <Outlet context={{ lang, setLang, profile }} />
+          <Suspense fallback={<p className="l-inline-status" role="status">{translate(lang, 'Loading…')}</p>}>
+            <Outlet context={{ lang, setLang, profile }} />
+          </Suspense>
         </main>
       </div>
     </div>

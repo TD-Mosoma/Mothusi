@@ -31,6 +31,15 @@ export default function LessonFeedback() {
       </div>
     )
   }
+  if (!lesson.adaptations) {
+    return (
+      <div className="stack">
+        <h1>{lesson.topic}</h1>
+        <p className="muted">This lesson is not ready yet.</p>
+        <p><Link to={`/teacher/lessons/${lesson.id}`}>Back to the lesson</Link></p>
+      </div>
+    )
+  }
 
   const adaptations = lesson.adaptations.filter((a) => !a.removed)
 

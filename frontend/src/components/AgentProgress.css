@@ -1,0 +1,23 @@
+.ap { display: flex; flex-direction: column; gap: var(--s-4); }
+.ap-head { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s-4); }
+.ap-head h2 { margin: 0 0 4px; }
+.ap-head p { margin: 0; }
+.ap-clock { font-family: var(--font-display); font-variant-numeric: tabular-nums; font-size: 1.4rem; font-weight: 600; color: var(--brand-strong); }
+
+.ap-bar { height: 8px; border-radius: 999px; background: var(--surface-tint); overflow: hidden; }
+.ap-bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--mo-teal), var(--mo-sun), var(--mo-orange)); transition: width 0.6s ease; }
+
+.ap-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.ap-step { display: flex; align-items: flex-start; gap: var(--s-3); padding: 8px 0; }
+.ap-text { display: flex; flex-direction: column; min-width: 0; }
+.ap-text strong { font-family: var(--font-display); font-weight: 500; font-size: 0.95rem; }
+.ap-text .muted { overflow-wrap: anywhere; }
+.ap-step.waiting .ap-text strong { color: var(--ink-soft); font-weight: 400; }
+.ap-icon {
+  flex-shrink: 0; width: 24px; height: 24px; margin-top: 1px; border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700;
+  border: 2px solid var(--line); color: var(--on-brand);
+}
+.ap-step.done .ap-icon { background: var(--ok); border-color: var(--ok); }
+.ap-step.working .ap-icon { border-color: var(--mo-orange); border-top-color: transparent; animation: ap-spin 0.9s linear infinite; }
+@keyframes ap-spin { to { transform: rotate(360deg); } }

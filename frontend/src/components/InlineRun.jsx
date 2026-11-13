@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react'
 import { useRunStream } from '../hooks/useRunStream.js'
-import AgentTimeline from './AgentTimeline.jsx'
+import LiveRun from './LiveRun.jsx'
 
-// A compact live timeline for follow-up runs (re-plan, re-check). Calls onDone once with the finished run.
-export default function InlineRun({ runId, title, onDone, onFail }) {
+// Live progress for follow-up runs (re-plan, re-check). Calls onDone once with the finished run.
+export default function InlineRun({ runId, title, onDone, onFail, showDetail = false }) {
   const { events, status, run } = useRunStream(runId)
   const reported = useRef(null)
 
@@ -11,12 +11,18 @@ export default function InlineRun({ runId, title, onDone, onFail }) {
     if (reported.current === runId) return
     if (status === 'done' && run) {
       reported.current = runId
-      onDone(run)
+      if (run.status === 'failed') onFail?.(run.error || 'Mothusi stopped before it finished.')
+      else onDone(run)
     } else if (status === 'failed' || status === 'disconnected') {
       reported.current = runId
       onFail?.(run?.error || 'The connection to Mothusi was lost.')
     }
   }, [status, run, runId])
 
-  return <AgentTimeline events={events} status={status} title={title} compact />
+  return (
+    <section className="stack" aria-label={title}>
+      <h2 className="visually-hidden">{title}</h2>
+      <LiveRun events={events} status={status} showDetail={showDetail} compact title={title} />
+    </section>
+  )
 }

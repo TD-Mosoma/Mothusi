@@ -41,11 +41,10 @@ def main() -> None:
     parser.add_argument("--offline", action="store_true")
     args = parser.parse_args()
     settings = load_settings()
-    settings.db_path.parent.mkdir(parents=True, exist_ok=True)
     llm = build_client(settings, offline=args.offline)
     trace = RunTrace("demo", on_event=show)
     print(f"Model: {llm.label}\n")
-    result = Orchestrator(settings, Store(settings.db_path)).plan_lesson(trace, llm, LessonRequest.model_validate(DEMO))
+    result = Orchestrator(settings, Store(settings.database)).plan_lesson(trace, llm, LessonRequest.model_validate(DEMO))
     print("\n" + result["pack"]["markdown"])
     print("\nStats:", json.dumps(result["pack"]["stats"]))
 

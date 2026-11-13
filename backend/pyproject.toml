@@ -8,7 +8,10 @@ dependencies = [
     "fastapi>=0.162.5",
     "langgraph>=0.6",
     "openai>=2.54.0",
+    "psycopg-pool>=3.2",
+    "psycopg[binary]>=3.2",
     "pydantic>=2.12.5",
+    "pypdf>=5",
     "python-dotenv>=1.2.4",
     "uvicorn>=0.54.0",
 ]

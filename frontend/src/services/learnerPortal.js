@@ -1,4 +1,5 @@
-// Learner-side progress, saved items and preferences. These stay on the learner's device.
+// Saved lessons and learning preferences. These stay on the learner's device; practice and progress are
+// recorded on the server (see recordActivity in api.js).
 const ACCOUNT_KEY = 'mothusi.learnerProfile'
 
 function read(key, fallback) {
@@ -24,8 +25,6 @@ function write(key, value) {
   }
 }
 
-export const getCompletedActivities = () => read(accountKey('mothusi.learnerCompleted'), 0)
-export const getRecentPractice = () => read(accountKey('mothusi.learnerRecentPractice'), null)
 export const getSavedLearning = () => read(accountKey('mothusi.learnerSaved'), [])
 export const getLearningPreferences = () => ({
   styles: ['pictures', 'shortSteps'],
@@ -33,11 +32,5 @@ export const getLearningPreferences = () => ({
   ...read(accountKey('mothusi.learnerPreferences'), {}),
 })
 
-export function completeLearnerActivity(lesson) {
-  write(accountKey('mothusi.learnerRecentPractice'), { runId: lesson.run_id, title: lesson.topic, at: new Date().toISOString() })
-  return write(accountKey('mothusi.learnerCompleted'), getCompletedActivities() + 1)
-}
-
 export const saveLearningItems = (items) => write(accountKey('mothusi.learnerSaved'), items)
 export const saveLearningPreferences = (preferences) => write(accountKey('mothusi.learnerPreferences'), preferences)
-export const saveLearnerReflection = (reflection) => write(accountKey('mothusi.learnerReflection'), reflection)

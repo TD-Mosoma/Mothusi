@@ -40,9 +40,10 @@ class DesignResult:
 
 
 class Orchestrator:
-    def __init__(self, settings: Settings, store: Store):
+    def __init__(self, settings: Settings, store: Store, activity=None):
         self.settings = settings
         self.store = store
+        self.activity = activity
         self.analyst = LessonAnalyst()
         self.matcher = NeedsMatcher()
         self.designer = AdaptationDesigner()
@@ -60,9 +61,10 @@ class Orchestrator:
 
     # ================================================================ full lesson plan
 
-    def plan_lesson(self, trace: RunTrace, llm: LLMClient, req: LessonRequest) -> dict:
+    def plan_lesson(self, trace: RunTrace, llm: LLMClient, req: LessonRequest, owner_id: str | None = None) -> dict:
         try:
-            final = self.graph.invoke({"trace": trace, "llm": llm, "req": req}, {"recursion_limit": 60})
+            final = self.graph.invoke({"trace": trace, "llm": llm, "req": req, "owner_id": owner_id},
+                                      {"recursion_limit": 60})
         finally:
             trace.node = None
         return final["result"]
@@ -90,7 +92,7 @@ class Orchestrator:
                        {"agent": "Pack Builder", "action": "Rebuild the pack and list what changed"},
                    ]})
 
-        memory = self.tracker.recall(self.store, trace, req)
+        memory = self.tracker.recall(self.store, trace, req, parent.get("owner_id"), self.activity)
         analysis = LessonAnalysis.model_validate(state["analysis"])
         analysis = self._fit_flow(trace, analysis, req.constraints.lesson_minutes)
         needs = NeedsMatch.model_validate(state["needs"])
@@ -150,7 +152,7 @@ class Orchestrator:
                    "about is flagged for your decision.",
                    {"steps": [{"agent": "Progress Tracker", "action": "Recall feedback"},
                               {"agent": "Reviewer", "action": "Check the edited adaptations"}]})
-        memory = self.tracker.recall(self.store, trace, req)
+        memory = self.tracker.recall(self.store, trace, req, parent.get("owner_id"), self.activity)
         outcome = self.reviewer.review_adaptations(llm, trace, req, analysis, edit.adaptations, memory,
                                                    round_label="your edited version")
         if outcome.passed:
@@ -173,7 +175,7 @@ class Orchestrator:
         req = LessonRequest.model_validate(plan_run["request"])
         state = plan_run["result"]["state"]
         analysis = LessonAnalysis.model_validate(state["analysis"])
-        learner = next((l for l in req.learners if ask.learner_code and l.code == ask.learner_code), None)
+        learner = next((l for l in req.learners if ask.learner_id and l.id == ask.learner_id), None)
         language = ask.language
         trace.emit(ORCHESTRATOR, "plan", f"A learner asked for another explanation ({ask.style})",
                    f"For {learner.name if learner else 'a learner in the class'}; language {language_name(language)}",

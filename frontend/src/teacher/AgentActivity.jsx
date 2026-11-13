@@ -7,7 +7,7 @@ import { useRunStream } from '../hooks/useRunStream.js'
 import AgentTimeline from '../components/AgentTimeline.jsx'
 
 const KIND = {
-  plan: 'Lesson plan', replan: 'Re-plan', recheck: 'Re-check', feedback: 'Feedback', explain: 'Learner help',
+  plan: 'Lesson plan', replan: 'Re-plan', recheck: 'Re-check', feedback: 'Feedback', explain: 'Learner asked for help',
 }
 const STATUS_TONE = { completed: 'ok', completed_with_warnings: 'warn', failed: 'warn', running: '' }
 const STATUS_LABEL = {
@@ -39,21 +39,21 @@ export default function AgentActivity() {
     <div className="stack">
       <div className="t-page-head">
         <div>
-          <h1>Agent Activity</h1>
+          <h1>How Mothusi worked</h1>
           <p className="muted">
             Every time Mothusi works, each agent's plan, output, check and correction is recorded here with timestamps.
-            Open a run to replay it, or watch one live.
+            Open one to replay it, or watch one live.
           </p>
         </div>
-        <Link to="/teacher/plan" className="btn">+ Create lesson</Link>
+        <Link to="/teacher/plan" className="btn">New lesson</Link>
       </div>
 
       {error && <p className="t-error" role="alert">{error}</p>}
 
       <div className="t-activity">
-        <section className="card stack t-run-list" aria-label="Agent runs">
-          <h2>Runs</h2>
-          {runs.length === 0 && !error && <p className="muted">No agent runs yet. Create a lesson plan to see the agents at work.</p>}
+        <section className="card stack t-run-list" aria-label="Recent work">
+          <h2>Recent work</h2>
+          {runs.length === 0 && !error && <p className="muted">Nothing yet. Prepare a lesson to see the agents at work.</p>}
           <ul>
             {runs.map((r) => (
               <li key={r.id}>
@@ -79,17 +79,16 @@ export default function AgentActivity() {
                 <strong>{selected.title}</strong>
                 <p className="muted small-text">
                   {KIND[selected.kind]} • started {formatDateTime(selected.created_at)}
-                  {selected.model && selected.model !== 'none' ? ` • ${selected.model}` : ''}
                 </p>
                 {selected.error && <p className="t-error">{selected.error}</p>}
               </div>
               <div className="row tight">
-                {selected.parent_run_id && <Link className="btn secondary small" to={`/teacher/activity/${selected.parent_run_id}`}>Previous run</Link>}
+                {selected.parent_run_id && <Link className="btn secondary small" to={`/teacher/activity/${selected.parent_run_id}`}>Earlier version</Link>}
                 {lesson && <Link className="btn secondary small" to={`/teacher/lessons/${lesson.id}`}>Open lesson</Link>}
               </div>
             </section>
           )}
-          {selectedId && <AgentTimeline events={events} status={status} title={status === 'running' ? 'Live agent activity' : 'Agent activity replay'} />}
+          {selectedId && <AgentTimeline events={events} status={status} title={status === 'running' ? 'Working now' : 'Replay'} />}
         </div>
       </div>
     </div>

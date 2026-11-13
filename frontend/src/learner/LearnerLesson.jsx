@@ -2,8 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useOutletContext, useSearchParams } from 'react-router-dom'
 import FractionCircle from '../components/FractionCircle.jsx'
 import { languageLabel } from '../teacher/curriculum.js'
-import { askForExplanation, runToCompletion } from '../services/api.js'
-import { completeLearnerActivity } from '../services/learnerPortal.js'
+import { askForExplanation, recordActivity, runToCompletion } from '../services/api.js'
+import PracticeSession from './PracticeSession.jsx'
+import ReadAloud from './ReadAloud.jsx'
 import { useLearnerLesson } from './useLearnerLesson.js'
 import { translate, translateMaterial } from './translations.js'
 
@@ -22,7 +23,7 @@ const KID_STEP = {
 export default function LearnerLesson() {
   const { lang, profile } = useOutletContext()
   const [params] = useSearchParams()
-  const { loading, lesson, error } = useLearnerLesson(profile?.code, lang, params.get('lesson'))
+  const { loading, lesson, error } = useLearnerLesson(lang, params.get('lesson'))
   const requestedStyle = params.get('style')
   const autoStarted = useRef(false)
   const [step, setStep] = useState(0)
@@ -35,18 +36,22 @@ export default function LearnerLesson() {
     setMaterial(lesson?.material || null)
     setLocalTranslation(lesson?.note === 'local_translation')
   }, [lesson])
-  const localizedMaterial = translateMaterial(material, lang)
+  // Tell the teacher this learner opened the lesson (counted once per learner).
+  useEffect(() => {
+    if (lesson?.run_id) recordActivity(lesson.run_id, 'opened', { topic: lesson.topic })
+  }, [lesson?.run_id])
+  const localizedMaterial = lesson?.offline_demo ? translateMaterial(material, lang) : material
 
   const explainAgain = async (style) => {
     setHelpError('')
     setHelping('Asking Mothusi for help…')
     try {
       const runId = await askForExplanation({
-        runId: lesson.run_id, code: profile?.code, language: lang, style, interests: profile?.interests || [],
+        runId: lesson.run_id, language: lang, style, interests: profile?.interests || [],
       })
-      const run = await runToCompletion(runId, (e) => { if (KID_STEP[e.agent]) setHelping(KID_STEP[e.agent]) })
+      const run = await runToCompletion(runId, (e) => { if (KID_STEP[e.agent]) setHelping(KID_STEP[e.agent]) }, { learner: true })
       if (run.status === 'failed') throw new Error(run.error)
-      const translatedMaterial = translateMaterial(run.result.material, lang)
+      const translatedMaterial = lesson.offline_demo ? translateMaterial(run.result.material, lang) : run.result.material
       setMaterial(translatedMaterial)
       setLocalTranslation(JSON.stringify(translatedMaterial) !== JSON.stringify(run.result.material))
       setStep(0)
@@ -80,6 +85,8 @@ export default function LearnerLesson() {
   }
 
   const visual = material.practice.flatMap((q) => q.options).find((o) => o.fraction)?.fraction
+  const contentLang = localTranslation ? lang : lesson.language || 'en'
+  const readText = [localizedMaterial.title, ...localizedMaterial.explanation, localizedMaterial.everyday_example].join(' ')
 
   return (
     <div className="stack l-page">
@@ -116,8 +123,9 @@ export default function LearnerLesson() {
       {step === 0 && (
         <section className="card l-learn">
           <div className="stack">
-            <div>{localizedMaterial.explanation.map((line, i) => <p key={i}>{translate(lang, line)}</p>)}</div>
-            <p className="l-example">{translate(lang, localizedMaterial.everyday_example)}</p>
+            <div>{localizedMaterial.explanation.map((line, i) => <p key={i}>{line}</p>)}</div>
+            <ReadAloud text={readText} lang={lang} contentLang={contentLang} />
+            <p className="l-example">{localizedMaterial.everyday_example}</p>
             {helping ? (
               <p className="l-note" role="status" aria-live="polite">{translate(lang, helping)}</p>
             ) : (
@@ -147,7 +155,8 @@ export default function LearnerLesson() {
       {step === 1 && (
         <section className="card stack">
           <h2>{translate(lang, 'Try it with real things')}</h2>
-          <p>{translate(lang, localizedMaterial.activity)}</p>
+          <p>{localizedMaterial.activity}</p>
+          <ReadAloud text={localizedMaterial.activity} lang={lang} contentLang={contentLang} />
           <div className="row">
             <button className="btn secondary" onClick={() => setStep(0)}>{translate(lang, 'Back')}</button>
             <button className="btn" onClick={() => setStep(2)}>{translate(lang, 'I tried it')}</button>
@@ -155,48 +164,7 @@ export default function LearnerLesson() {
         </section>
       )}
 
-      {step === 2 && <Practice key={localizedMaterial.title} questions={localizedMaterial.practice} lang={lang} onDone={() => completeLearnerActivity(lesson)} />}
+      {step === 2 && <PracticeSession key={localizedMaterial.title} lesson={lesson} questions={localizedMaterial.practice} lang={lang} contentLang={contentLang} />}
     </div>
-  )
-}
-
-function Practice({ questions, lang, onDone }) {
-  const [qi, setQi] = useState(0)
-  const [picked, setPicked] = useState(null)
-  const q = questions[qi]
-  const correct = picked === q.answer_index
-  const last = qi === questions.length - 1
-
-  const next = () => { setPicked(null); setQi((i) => i + 1) }
-  const done = picked !== null && correct && last
-
-  useEffect(() => { if (done) onDone() }, [done])
-
-  return (
-    <section className="card stack">
-      <h2>{translate(lang, 'Question {number} of {total}', { number: qi + 1, total: questions.length })}</h2>
-      <p className="l-question">{translate(lang, q.prompt)}</p>
-      <div className="l-options" role="group" aria-label={translate(lang, 'Answer choices')}>
-        {q.options.map((o, i) => (
-          <button
-            key={i}
-            className={`l-option ${picked === i ? (i === q.answer_index ? 'right' : 'try') : ''}`}
-            onClick={() => setPicked(i)}
-            aria-label={o.fraction ? translate(lang, '{count} of {parts} parts shaded', { count: o.fraction.shaded, parts: o.fraction.parts }) : translate(lang, o.text)}
-          >
-            {o.fraction ? <FractionCircle parts={o.fraction.parts} shaded={o.fraction.shaded} size={110} /> : <span className="l-option-text">{translate(lang, o.text)}</span>}
-          </button>
-        ))}
-      </div>
-
-      {picked !== null && (
-        <div className={`l-feedback ${correct ? 'right' : 'try'}`} role="status">
-          {correct ? translate(lang, 'Well done! You found it.') : translate(lang, q.hint ? 'Good try. {hint}' : 'Good try.', { hint: translate(lang, q.hint) || translate(lang, 'Look again and try another answer.') })}
-        </div>
-      )}
-
-      {picked !== null && correct && !last && <button className="btn" onClick={next}>{translate(lang, 'Next question')}</button>}
-      {picked !== null && correct && last && <p className="l-done">{translate(lang, 'You finished today’s practice. Great work!')}</p>}
-    </section>
   )
 }

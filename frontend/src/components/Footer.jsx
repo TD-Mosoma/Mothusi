@@ -1,3 +1,4 @@
+import BrandLogo from './BrandLogo.jsx'
 import './SiteChrome.css'
 
 export default function Footer() {
@@ -5,8 +6,8 @@ export default function Footer() {
     <footer className="site-footer">
       <div className="site-footer-inner">
         <div>
-          <p className="site-footer-logo">Mothusi</p>
-          <p className="site-footer-text">Helper in Setswana. An intelligent classroom colleague.</p>
+          <p className="site-footer-logo"><BrandLogo variant="mark" /> Mothusi</p>
+          <p className="site-footer-text">Mothusi means “helper” in Setswana. A classroom colleague for Grade 1 to 4 teachers.</p>
         </div>
         <div>
           <p className="site-footer-text">

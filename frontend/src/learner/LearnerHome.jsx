@@ -1,16 +1,19 @@
 import { Link, useOutletContext } from 'react-router-dom'
 import FractionCircle from '../components/FractionCircle.jsx'
 import { languageLabel } from '../teacher/curriculum.js'
-import { getCompletedActivities } from '../services/learnerPortal.js'
-import { useLearnerLesson, useLearnerLessons } from './useLearnerLesson.js'
+import { useLearnerLesson, useLearnerLessons, useLearnerLink, useLearnerProgress } from './useLearnerLesson.js'
+import JoinClass from './JoinClass.jsx'
 import { translate } from './translations.js'
 
 export default function LearnerHome() {
   const { lang, profile } = useOutletContext()
-  const { loading, lesson, error } = useLearnerLesson(profile?.code, lang)
-  const { lessons } = useLearnerLessons()
+  const { link, loading: linkLoading, setLink } = useLearnerLink()
+  const { loading, lesson, error } = useLearnerLesson(lang, null, link?.class_id)
+  const { lessons } = useLearnerLessons(link?.class_id)
+  const notJoined = !linkLoading && !link
   const firstName = profile?.fullName?.trim().split(' ')[0]
-  const completed = getCompletedActivities()
+  const { progress } = useLearnerProgress(link?.class_id)
+  const completed = progress?.practice_done || 0
   const fraction = lesson?.material.practice.flatMap((q) => q.options).find((o) => o.fraction)?.fraction
 
   return (
@@ -21,7 +24,13 @@ export default function LearnerHome() {
           <h1>{firstName ? translate(lang, 'Hello, {name}!', { name: firstName }) : translate(lang, 'Hello! Ready to learn?')}</h1>
           {loading && <p>{translate(lang, 'Getting your lesson ready…')}</p>}
           {error && <p>{translate(lang, 'We cannot load your lessons right now. Please ask your teacher.')}</p>}
-          {!loading && !error && !lesson && <p>{translate(lang, 'Your teacher has not shared a lesson yet. Check again soon!')}</p>}
+          {notJoined && (
+            <>
+              <p>{translate(lang, 'Ask your teacher for your class code, then type it here to see your lessons.')}</p>
+              <JoinClass lang={lang} onJoined={setLink} compact />
+            </>
+          )}
+          {!loading && !error && !lesson && link && <p>{translate(lang, 'Your teacher has not shared a lesson yet. Check again soon!')}</p>}
           {lesson && (
             <>
               <p>{translate(lang, 'Today you are learning about {topic}. Take your time, and ask for another explanation whenever something is unclear.', { topic: lesson.topic.toLowerCase() })}</p>
@@ -37,7 +46,7 @@ export default function LearnerHome() {
       </section>
 
       <section className="l-stats" aria-label={translate(lang, 'Your learning at a glance')}>
-        <div className="l-stat-card stat-blue"><span className="l-stat-icon" aria-hidden="true">▤</span><span className="l-stat-label">{translate(lang, 'MY CLASS')}</span><strong>{profile?.grade || translate(lang, 'Not set')}</strong></div>
+        <div className="l-stat-card stat-blue"><span className="l-stat-icon" aria-hidden="true">▤</span><span className="l-stat-label">{translate(lang, 'MY CLASS')}</span><strong>{link?.class_name || profile?.grade || translate(lang, 'Not set')}</strong></div>
         <div className="l-stat-card stat-yellow"><span className="l-stat-icon" aria-hidden="true">✦</span><span className="l-stat-label">{translate(lang, 'LESSONS SHARED')}</span><strong>{lessons.length}</strong></div>
         <div className="l-stat-card stat-green"><span className="l-stat-icon" aria-hidden="true">✎</span><span className="l-stat-label">{translate(lang, 'PRACTICE DONE')}</span><strong>{completed} {translate(lang, completed === 1 ? 'activity' : 'activities')}</strong></div>
         <div className="l-stat-card stat-pink"><span className="l-stat-icon" aria-hidden="true">◉</span><span className="l-stat-label">{translate(lang, 'MY LANGUAGE')}</span><strong>{languageLabel(lang)}</strong></div>
@@ -46,7 +55,7 @@ export default function LearnerHome() {
       <section className="l-home-grid">
         <div className="l-panel l-continue">
           <div className="l-panel-heading">
-            <h2>{translate(lang, 'Continue learning section')}</h2>
+            <h2>{translate(lang, 'Continue learning')}</h2>
             {lesson && <span className="l-subject-pill">{lesson.subject}</span>}
           </div>
           {lesson ? (
@@ -55,7 +64,7 @@ export default function LearnerHome() {
                 {fraction ? <FractionCircle parts={fraction.parts} shaded={fraction.shaded} size={86} /> : <span className="l-mini-icon" aria-hidden="true">✦</span>}
               </div>
               <div>
-                <h3>{translate(lang, lesson.material.title)}</h3>
+                <h3>{lesson.material.title}</h3>
                 <p>{translate(lang, lesson.personalised ? 'Made for you by your teacher and Mothusi.' : 'Your class lesson.')}</p>
                 <Link to="/learner/lesson" className="btn">{translate(lang, 'Continue lesson')} <span aria-hidden="true">→</span></Link>
               </div>

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../services/AuthContext.jsx'
+import BrandLogo from '../components/BrandLogo.jsx'
 import './onboarding.css'
 
 import { GRADES, SUBJECTS } from './curriculum.js'
@@ -51,7 +52,7 @@ export default function TeacherOnboarding() {
   return (
     <div className="theme-teacher tob-shell">
       <form className="tob-card" onSubmit={submit} noValidate>
-        <Link to="/" className="tob-logo">Mothusi</Link>
+        <Link to="/" className="tob-logo" aria-label="Mothusi home"><BrandLogo /></Link>
         <p className="muted">Already registered? <Link to="/login">Log in</Link></p>
         <h1>Set up your teacher account</h1>
         <p className="muted">Mothusi supports teachers of Grades 1 to 4. Your grades and subjects shape the lessons it helps you plan.</p>

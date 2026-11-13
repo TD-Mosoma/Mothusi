@@ -1,4 +1,5 @@
 import json
+import os
 
 import pytest
 
@@ -24,16 +25,31 @@ DEMO = {
 }
 
 
+# Set MOTHUSI_TEST_DATABASE_URL to a throwaway PostgreSQL database to run every test against PostgreSQL
+# (the database Mothusi uses in production) instead of a temporary SQLite file. Its tables are emptied before each test.
+TEST_DATABASE_URL = os.getenv("MOTHUSI_TEST_DATABASE_URL") or None
+TABLES = ("runs", "events", "feedback", "accounts", "auth_sessions", "join_codes", "learner_links", "picture_logins",
+          "password_resets", "workspace_docs", "learner_activity", "resources")
+
+
 @pytest.fixture
 def settings(tmp_path):
+    if TEST_DATABASE_URL:
+        from storage.db import connect
+        db = connect(TEST_DATABASE_URL)
+        existing = {r["table_name"] for r in db.all(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'")}
+        present = [t for t in TABLES if t in existing]
+        if present:
+            db.run(f"TRUNCATE {', '.join(present)} RESTART IDENTITY CASCADE")
     return Settings(provider="mock", api_key=None, base_url="", model="", language_model="", reasoning_tasks=frozenset(), temperature=0.0, timeout_seconds=5,
                     max_design_attempts=3, max_material_attempts=2, mock_delay_seconds=0.0,
-                    db_path=tmp_path / "test.db", cors_origins=[])
+                    db_path=tmp_path / "test.db", cors_origins=[], database_url=TEST_DATABASE_URL)
 
 
 @pytest.fixture
 def store(settings):
-    return Store(settings.db_path)
+    return Store(settings.database)
 
 
 @pytest.fixture

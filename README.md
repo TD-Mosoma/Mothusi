@@ -47,7 +47,7 @@ graph TD;
 If the planner or router model fails, the graph falls back to a safe default route and says so in the timeline.
 
 Every step is a timestamped event tagged with its graph node, streamed live to the teacher portal. The planner page
-and **Agent Activity** show the graph with the active agent lit up and the path the run actually took, plus a full
+and **How Mothusi worked** show the graph with the active agent lit up and the path the run actually took, plus a full
 timeline with reasoning excerpts and every routing decision. Any run can be replayed.
 
 **Adapting when things change.** When a teacher changes a condition (for example "tomorrow is in a noisy hall") or
@@ -67,7 +67,7 @@ Backend (Python 3.10+, [uv](https://docs.astral.sh/uv/)):
 
 ```bash
 cd backend
-cp .env.example .env          # add NVIDIA_API_KEY; without it Mothusi uses the offline demo model
+cp .env.example .env          # add NVIDIA_API_KEY; without it Mothusi uses practice mode (the offline model)
 uv sync
 uv run uvicorn main:app --reload --port 8000
 ```
@@ -82,16 +82,46 @@ npm run dev                   # http://localhost:5173, proxies /api to port 8000
 
 ### Accounts and access
 
-Learners create an account during onboarding with an email address and a password of at least 8 characters. Teacher
-accounts are created through the teacher setup flow with an email and password. Both sign-up flows log the user in
-when the account is created. Returning users use **Log in**; their account role opens the matching portal and skips
-onboarding. Accounts and password hashes are stored in the backend SQLite database, and teacher and learner API
-routes require an authenticated session with the matching role.
+Teachers create an account through the teacher setup flow (email and password). Older learners can create an account
+with an email, or join with the code their teacher gives them. **Young learners sign in with pictures** at `/join`:
+they type the class code, tap their name, then tap three pictures (chosen and confirmed the first time). Five wrong
+tries lock picture sign-in for 10 minutes, and the teacher can reset a learner's pictures on **Learners & codes**.
+
+Everything a teacher creates is saved to their account on the server, not in the browser: classes (with each class's
+usual classroom conditions), learner profiles, lesson plans and uploaded materials (whose text Mothusi reads and plans
+from). Each teacher only ever sees their own work. A new teacher starts empty, with a "Get your class ready" checklist
+and an optional sample class (marked **Sample**, made-up learners).
+
+**Password recovery:** "Forgot your password?" emails a one-hour, single-use link (set `MOTHUSI_SMTP_HOST`,
+`MOTHUSI_SMTP_PORT`, `MOTHUSI_SMTP_USER`, `MOTHUSI_SMTP_PASSWORD`, `MOTHUSI_SMTP_FROM` and `MOTHUSI_PUBLIC_URL`).
+Without email set up, the link is written to the backend log; `MOTHUSI_SHOW_RESET_LINKS=1` also shows it on screen
+for local testing only. Changing a password logs the account out everywhere.
 
 Terminal demo of the full workflow: `cd backend && uv run python -m scripts.demo` (add `--offline` for the offline
 model).
 
 Tests: `cd backend && uv run pytest`.
+
+### Database (Supabase)
+
+Locally Mothusi keeps everything in a SQLite file, so it runs with no setup. For a deployment, point it at
+PostgreSQL; Supabase works out of the box:
+
+1. Create a Supabase project and note the database password you choose.
+2. In **Project Settings → Database → Connection string**, copy the **URI** for the **Session pooler**
+   (it works from hosts without IPv6, which includes most free hosting).
+3. Put it in `backend/.env` (or your host's environment) with your password filled in:
+   `MOTHUSI_DATABASE_URL=postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require`
+   URL-encode any `@ : / # ?` in the password.
+4. Start the backend. It creates its tables on first start and turns on row-level security for each one, so
+   Supabase's public API keys cannot read them; only the backend, which connects as the database owner, can.
+5. Optional: copy your local data across with `cd backend && uv run python -m scripts.copy_to_postgres`.
+   It can be run more than once safely.
+
+Mothusi uses Supabase as a PostgreSQL database only: accounts, sessions and uploaded materials are handled by the
+backend itself, not by Supabase Auth or Storage. Run one backend instance: live agent progress is streamed from
+the process that runs the agents. To run the tests against PostgreSQL, set `MOTHUSI_TEST_DATABASE_URL` to an empty
+throwaway database (never the production one: the tests empty its tables).
 
 ### Models
 
@@ -104,30 +134,29 @@ Tests: `cd backend && uv run pytest`.
 Built with LangGraph (workflow graph), Pydantic (validated agent outputs), the `openai` client (NVIDIA's
 OpenAI-compatible API), FastAPI with Server-Sent Events (live streaming), SQLite (runs, events, feedback) and React.
 
-The **offline demo model** is rule-based and clearly labelled in the UI. Tick "Use the offline demo model" in the
+**Practice mode** (the offline model) is rule-based and clearly labelled in the UI. Tick "Practice mode" in the
 planner to rehearse, or to use it as a fallback if the network fails during judging. It cannot translate, and it says
-so.
+so. Teachers never see model names; the "How Mothusi worked" view shows "Live AI agents" or "Practice mode".
 
 ## Demo script (about 5 minutes)
 
-1. **Teacher portal → Lesson Planner.** Grade 4A, Mathematics, "Fractions: halves and quarters". Three synthetic
-   profiles: Learner A (visual), Learner B (short structured steps), Learner C (practical, learns in Setswana).
-   No printer, 40 learners, 5 minutes of one-to-one time.
-2. **Start the agents.** The workflow graph lights up node by node while the timeline shows the Orchestrator's own
-   plan, each agent's output and timings. With the offline model the Designer's first draft needs 20 minutes of
-   one-to-one time, so the Reviewer rejects it, the router sends only that item back, and the Designer tests its fix
-   with `check_plan` before resubmitting. The graph shows the design–review loop as ×2. Live models often get the
-   budget right first time, either straight away or after using `check_plan`; the next step then produces real
-   rejections.
-3. **Review the pack.** Show the checks, the learner material and the Setswana translation with its back-translation.
-4. **Classroom conditions changed → noisy venue.** Adaptations that rely on speaking or listening are rejected and
-   redesigned, and the rest are kept. "What changed in version 2" lists the differences.
-5. **Approve**, then open the learner portal (learner code `L-003`): the home page, My lessons, Learn a topic,
-   Practice and My progress all show the approved lesson. Choosing "Show me" on Learn a topic runs the
-   Personalisation Agent live.
-6. **Submit feedback**, marking one strategy "Did not work". Plan the next lesson: the Progress Tracker recalls the
-   feedback and the Reviewer blocks the repeat.
-7. **Agent Activity:** replay any run with timestamps, reasoning excerpts and every routing decision.
+1. **Home → Try with a sample class.** Grade 4A (Sample) with three made-up learners: Learner A (visual), Learner B
+   (short structured steps), Learner C (practical, learns in Setswana).
+2. **New lesson.** Pick a CAPS topic (it fills the topic, objective and key words). The class's usual conditions are
+   shown in one line; "Anything different tomorrow?" changes them. **Prepare lesson.**
+3. **The wait.** The short progress view shows each step and what it found, with a time estimate. The lesson is
+   saved as *Preparing…* and finishes even if you leave. "Show how the agents worked" opens the live graph and the
+   full timeline: the Reviewer rejecting a draft, the router sending back only that item, the Designer's fix.
+4. **Review.** The summary card (learners supported, your minutes against your budget, checks passed), the sticky
+   Approve / Edit / Return bar, and detail sections that open on demand. Try **Conditions changed → noisy venue**:
+   only the adaptations that no longer fit are redesigned. **Approve.**
+5. **Learners & codes → Show on screen.** On a phone, open `/join`, type the code, tap *Learner B*, choose three
+   pictures. Open the lesson, use "Read it to me", ask for "Show me with pictures", do the practice and the reflection.
+6. **Back to the teacher.** The lesson now shows "1 of 40 opened", the most-missed question and how it felt; Class
+   insights shows each learner. Open the **Lesson card** for teach mode (phase timer, who needs what now) and
+   **Share as image**.
+7. **Plan again.** The Progress Tracker recalls the learner's practice as evidence (and your feedback, if given), and
+   the next plan builds on it.
 
 ## Repository layout
 

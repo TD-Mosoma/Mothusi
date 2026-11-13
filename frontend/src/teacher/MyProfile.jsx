@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { useRef, useState } from 'react'
 import { useTeacher } from './TeacherContext.jsx'
 import { GRADES, SUBJECTS, LANGUAGE_OPTIONS, unique } from './curriculum.js'
@@ -87,7 +88,7 @@ export default function MyProfile() {
     <div className="stack">
       <div className="t-page-head">
         <div>
-          <h1>My Teacher Profile</h1>
+          <h1>Profile</h1>
           <p className="muted">Manage your details, teaching assignments and planning preferences.</p>
         </div>
       </div>
@@ -121,9 +122,9 @@ export default function MyProfile() {
               {LANGUAGE_OPTIONS.map((l) => <option key={l}>{l}</option>)}
             </select>
           </label>
-          <label className="t-field">Default class conditions
-            <input value={f.defaultConditions} onChange={(e) => set('defaultConditions', e.target.value)} />
-          </label>
+          <div className="t-field">Classroom conditions
+            <p className="t-static muted">Saved for each class when you plan. See them in <Link to="/teacher/classes">Classes</Link>.</p>
+          </div>
         </div>
 
         <div className="t-assign">

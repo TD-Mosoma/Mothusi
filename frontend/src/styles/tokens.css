@@ -1,4 +1,5 @@
-/* Mothusi design tokens for both color themes and portal palettes. */
+/* Mothusi design tokens. One brand (taken from the logo) shared by both portals:
+   the teacher portal is a calm, teal-tinted workspace; the learner portal is brighter and warmer. */
 
 :root {
   --font-display: 'Lexend', system-ui, sans-serif;
@@ -6,85 +7,125 @@
 
   --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
   --s-5: 24px; --s-6: 32px; --s-7: 48px; --s-8: 64px;
+  --r-sm: 8px;
 
-  --ok: #3FA97C;
+  /* Brand, from the logo */
+  --mo-teal: #2A9D9B;          /* wordmark teal: decoration and large type */
+  --mo-teal-strong: #1B6E71;   /* buttons, links, active states (white text passes AA) */
+  --mo-teal-deep: #124A4F;     /* the logo's dark outline */
+  --mo-orange: #EE7A36;        /* the robot's orange half */
+  --mo-orange-strong: #A84C14; /* orange that is readable as text */
+  --mo-sun: #F5B940;           /* the spark above the robot */
+
+  --ok: #2F9468;
   --ok-soft: #E3F5EC;
-  --gentle: #E07A5F;
+  --gentle: #D9663F;
   --gentle-soft: #FCEBE6;
-  --star: #F6B93B;
-  --focus: #1D6FB0;
+  --danger-ink: #A8322A;
+  --star: var(--mo-sun);
+  --focus: var(--mo-teal-strong);
   --page-bg: #FFFFFF;
-  --page-ink: #17344D;
-  --page-line: #DDE1E5;
+  --page-ink: #16343A;
+  --page-line: #D6E2E2;
 }
 
 :root[data-theme='dark'] {
   color-scheme: dark;
-  --page-bg: #151B22;
-  --page-ink: #E7EDF3;
-  --page-line: #39434E;
-  --ok-soft: #1D3A2D;
-  --gentle-soft: #452820;
+  --page-bg: #0F1A1C;
+  --page-ink: #E6F2F1;
+  --page-line: #2E4447;
+  --ok-soft: #173527;
+  --gentle-soft: #3E241C;
+  --danger-ink: #F29A90;
+  --focus: #7FD3CF;
 }
 
 .theme-learner {
-  --bg: #F3F9FE;
+  --bg: #F2FAF9;
   --surface: #FFFFFF;
-  --surface-tint: #E4F2FC;
-  --line: #CFE5F5;
-  --brand: #3AA0E8;
-  --brand-strong: #1D6FB0;
-  --brand-soft: #BFE2F8;
-  --ink: #17344D;
-  --ink-soft: #4C6A82;
-  --focus: #1D6FB0;
+  --surface-tint: #E2F4F1;
+  --line: #C9E6E1;
+  --brand: var(--mo-teal);
+  --brand-strong: var(--mo-teal-strong);
+  --brand-soft: #BDE5DF;
+  --accent: var(--mo-orange);
+  --accent-soft: #FDE7D8;
+  --accent-ink: var(--mo-orange-strong);
+  --ink: #16343A;
+  --ink-soft: #496568;
+  --focus: var(--mo-teal-strong);
+  --on-brand: #FFFFFF;
+  --frac-fill: var(--mo-teal);
+  --frac-empty: #FFFFFF;
+  --frac-stroke: var(--mo-teal-deep);
   --r-md: 20px;
   --r-lg: 28px;
-  --shadow: 0 2px 0 var(--line), 0 10px 24px rgba(58, 160, 232, 0.12);
+  --shadow: 0 2px 0 var(--line), 0 10px 24px rgba(42, 157, 155, 0.12);
   --base-size: 18px;
 }
 
 .theme-teacher {
-  --bg: #F6F7F8;
+  --bg: #F4F7F7;
   --surface: #FFFFFF;
-  --surface-tint: #EEF0F2;
-  --line: #DDE1E5;
-  --brand: #4A5560;
-  --brand-strong: #2B333A;
-  --brand-soft: #D5DADF;
-  --ink: #232A30;
-  --ink-soft: #5B6670;
+  --surface-tint: #E9F1F0;
+  --line: #D6E2E1;
+  --brand: var(--mo-teal);
+  --brand-strong: var(--mo-teal-strong);
+  --brand-soft: #C6E3E0;
+  --accent: var(--mo-orange);
+  --accent-soft: #FDE7D8;
+  --accent-ink: var(--mo-orange-strong);
+  --ink: #1D2F32;
+  --ink-soft: #546A6D;
+  --focus: var(--mo-teal-strong);
+  --on-brand: #FFFFFF;
+  --frac-fill: var(--mo-teal);
+  --frac-empty: #FFFFFF;
+  --frac-stroke: var(--mo-teal-deep);
   --r-md: 10px;
   --r-lg: 14px;
-  --shadow: 0 1px 2px rgba(35, 42, 48, 0.06), 0 4px 14px rgba(35, 42, 48, 0.05);
+  --shadow: 0 1px 2px rgba(18, 74, 79, 0.06), 0 4px 14px rgba(18, 74, 79, 0.05);
   --base-size: 16px;
-  --focus: #3B5B7A;
 }
 
 :root[data-theme='dark'] .theme-learner {
-  --bg: #121B24;
-  --surface: #1B2935;
-  --surface-tint: #263A4B;
-  --line: #3A5265;
-  --brand: #4B9DD5;
-  --brand-strong: #83C8F5;
-  --brand-soft: #3A5D76;
-  --ink: #ECF4FA;
-  --ink-soft: #BDD0DE;
-  --focus: #83C8F5;
-  --shadow: 0 2px 0 var(--line), 0 10px 24px rgba(0, 0, 0, 0.2);
+  --bg: #0F1A1C;
+  --surface: #172628;
+  --surface-tint: #20363A;
+  --line: #2F4A4E;
+  --brand: #4FC2BE;
+  --brand-strong: #7FD3CF;
+  --brand-soft: #2B5B5C;
+  --accent: #F49A63;
+  --accent-soft: #4A2E1D;
+  --accent-ink: #F6AE80;
+  --ink: #E6F2F1;
+  --ink-soft: #A9C4C3;
+  --focus: #7FD3CF;
+  --on-brand: #0B1B1D;
+  --frac-fill: #4FC2BE;
+  --frac-empty: #172628;
+  --frac-stroke: #9FE0DC;
+  --shadow: 0 2px 0 var(--line), 0 10px 24px rgba(0, 0, 0, 0.25);
 }
 
 :root[data-theme='dark'] .theme-teacher {
-  --bg: #171B20;
-  --surface: #222830;
-  --surface-tint: #303943;
-  --line: #454F5A;
-  --brand: #9BAAB8;
-  --brand-strong: #B8D5F0;
-  --brand-soft: #465564;
-  --ink: #EDF1F5;
-  --ink-soft: #C0CAD3;
-  --focus: #B8D5F0;
-  --shadow: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 14px rgba(0, 0, 0, 0.15);
+  --bg: #111A1C;
+  --surface: #192527;
+  --surface-tint: #233335;
+  --line: #34494C;
+  --brand: #4FC2BE;
+  --brand-strong: #7FD3CF;
+  --brand-soft: #2E5254;
+  --accent: #F49A63;
+  --accent-soft: #4A2E1D;
+  --accent-ink: #F6AE80;
+  --ink: #E8F1F0;
+  --ink-soft: #AFC4C3;
+  --focus: #7FD3CF;
+  --on-brand: #0B1B1D;
+  --frac-fill: #4FC2BE;
+  --frac-empty: #192527;
+  --frac-stroke: #9FE0DC;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.25), 0 4px 14px rgba(0, 0, 0, 0.2);
 }

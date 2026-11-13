@@ -26,9 +26,9 @@ LANGUAGES = {
     "xh": "isiXhosa",
     "af": "Afrikaans",
     "st": "Sesotho",
-    "ve": "Tshivenda (Venda)",
+    "ve": "Tshivenḓa",
     "nso": "Sepedi",
     "nr": "isiNdebele",
     "ss": "siSwati",
-    "ts": "itsonga",
+    "ts": "Xitsonga",
 }

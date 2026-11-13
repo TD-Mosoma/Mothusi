@@ -22,11 +22,11 @@ export const LANGUAGES = [
   { code: 'xh', label: 'isiXhosa' },
   { code: 'af', label: 'Afrikaans' },
   { code: 'st', label: 'Sesotho' },
-  { code: 've', label: 'Tshivenda (Venda)' },
+  { code: 've', label: 'Tshivenḓa' },
   { code: 'nso', label: 'Sepedi' },
   { code: 'nr', label: 'isiNdebele' },
   { code: 'ss', label: 'siSwati' },
-  { code: 'ts', label: 'itsonga' },
+  { code: 'ts', label: 'Xitsonga' },
 ]
 export const LANGUAGE_OPTIONS = LANGUAGES.map((l) => l.label)
 export const languageLabel = (code) => LANGUAGES.find((l) => l.code === code)?.label || code

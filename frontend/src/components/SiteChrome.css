@@ -1,86 +1,41 @@
-/* Header and footer. Background colours only for now; style later. */
-
+/* Header and footer for the public pages, in the Mothusi brand (uses the theme tokens of the page). */
 .site-header {
-  position: sticky;
-  top: 0;
-  z-index: 10;
-  background: #FFFFFF;
-  border-bottom: 1px solid #DDE1E5;
+  position: sticky; top: 0; z-index: 10;
+  background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
 }
 .site-header-inner {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 8px var(--s-5);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--s-4);
-  flex-wrap: wrap;
+  max-width: 1120px; margin: 0 auto; padding: 8px var(--s-5);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); flex-wrap: wrap;
 }
 .site-logo { display: flex; align-items: center; }
-.site-logo img {
-  height: 140px;
-  width: auto;
-  display: block;
-}
+.site-logo .brand-lockup { --logo-h: 50px; }
 .site-nav { display: flex; align-items: center; gap: var(--s-4); flex-wrap: wrap; }
 .site-nav-actions { display: inline-flex; align-items: center; gap: var(--s-2); }
-.site-nav a {
-  font-family: var(--font-display);
-  font-size: 0.95rem;
-  color: #1D6FB0;
-  text-decoration: none;
-}
-.site-nav a:hover { text-decoration: underline; }
-.site-nav-cta {
-  background: #1D6FB0;
-  color: #fff !important;
-  padding: 8px 18px;
-  border-radius: 999px;
-}
-.site-nav-cta:hover { text-decoration: none !important; background: #17588C; }
+.site-nav a { font-family: var(--font-display); font-size: 0.95rem; color: var(--ink); text-decoration: none; }
+.site-nav a:hover { color: var(--brand-strong); }
+.site-nav .site-nav-cta { background: var(--brand-strong); color: var(--on-brand); padding: 8px 18px; border-radius: 999px; }
+.site-nav .site-nav-cta:hover { color: var(--on-brand); filter: brightness(1.08); }
 .site-nav .site-nav-login {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 40px;
-  padding: 7px 16px;
-  border: 2px solid #1D6FB0;
-  border-radius: 999px;
-  color: #1D6FB0;
+  display: inline-flex; align-items: center; justify-content: center; min-height: 40px; padding: 6px 16px;
+  border: 2px solid var(--brand-soft); border-radius: 999px; color: var(--brand-strong);
 }
-.site-nav .site-nav-login:hover { text-decoration: none; background: #E4F2FC; }
+.site-nav .site-nav-login:hover { border-color: var(--brand); }
 
-.site-footer {
-  background: #2B333A;
-  color: #E6E9EC;
-}
+.site-footer { background: var(--mo-teal-deep); color: #E3F0EF; }
 .site-footer :focus-visible { outline-color: #fff; }
+.site-footer a { color: #FFFFFF; }
 .site-footer-inner {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: var(--s-6) var(--s-5);
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--s-5);
+  max-width: 1120px; margin: 0 auto; padding: var(--s-6) var(--s-5);
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: var(--s-5);
 }
-.site-footer-logo {
-  font-family: var(--font-display);
-  font-weight: 700;
-  font-size: 1.3rem;
-  color: #fff;
-  margin: 0 0 var(--s-2);
-}
+.site-footer-logo { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-weight: 700; font-size: 1.3rem; color: #fff; margin: 0 0 var(--s-2); }
+.site-footer-logo .brand-mark { height: 40px; background: #FFFFFF; border-radius: 10px; padding: 3px; }
 .site-footer-text { margin: 0 0 var(--s-2); font-size: 0.95rem; max-width: 52ch; }
-
-:root[data-theme='dark'] .site-header {
-  background: #1B222A;
-  border-bottom-color: #39434E;
-}
-:root[data-theme='dark'] .site-nav a { color: #B8D5F0; }
-:root[data-theme='dark'] .site-nav .site-nav-login { border-color: #83C8F5; }
+:root[data-theme='dark'] .site-footer { background: #0A1416; }
 
 @media (max-width: 560px) {
   .site-header-inner { justify-content: center; }
-  .site-logo img { height: 112px; }
+  .site-logo .brand-lockup { --logo-h: 42px; }
+  .site-nav { justify-content: center; gap: var(--s-3); }
 }

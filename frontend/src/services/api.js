@@ -1,4 +1,4 @@
-﻿// All calls to the Mothusi backend. In development Vite proxies /api to the FastAPI server.
+// All calls to the Mothusi backend. In development Vite proxies /api to the FastAPI server.
 const BASE = import.meta.env.VITE_API_URL || ''
 const TOKEN_KEY = 'mothusi.authToken'
 
@@ -48,6 +48,15 @@ export const getCurrentUser = () => request('/api/auth/me').then((r) => r.user)
 export const logout = () => request('/api/auth/logout', { method: 'POST' })
 export const updateAccountProfile = (profile) =>
   request('/api/auth/profile', { method: 'PATCH', body: profile }).then((r) => r.user)
+export const forgotPassword = (email) => request('/api/auth/forgot', { method: 'POST', body: { email } })
+export const resetPassword = (token, password) => request('/api/auth/reset', { method: 'POST', body: { token, password } })
+
+// Picture sign-in for young learners: class code, then their name, then three pictures in order.
+export const getPictureRoster = (code) => request('/api/auth/picture/roster', { method: 'POST', body: { code } })
+export const setupPictures = ({ code, learnerId, pictures }) =>
+  request('/api/auth/picture/setup', { method: 'POST', body: { code, learner_id: learnerId, pictures } })
+export const pictureLogin = ({ code, learnerId, pictures }) =>
+  request('/api/auth/picture/login', { method: 'POST', body: { code, learner_id: learnerId, pictures } })
 
 // ---------------------------------------------------------------- runs
 
@@ -71,20 +80,67 @@ export const getMemory = (learnerIds) =>
 
 // ---------------------------------------------------------------- learner portal
 
-export const getLearnerLesson = ({ code, language, runId }) => {
-  const q = new URLSearchParams({ language: language || 'en', ...(code ? { code } : {}), ...(runId ? { run_id: runId } : {}) })
+// The server decides which lessons a learner may see from the code their teacher gave them.
+export const getLearnerLesson = ({ language, runId }) => {
+  const q = new URLSearchParams({ language: language || 'en', ...(runId ? { run_id: runId } : {}) })
   return request(`/api/learner/lesson?${q}`).then((r) => r.lesson)
 }
 export const listLearnerLessons = () => request('/api/learner/lessons').then((r) => r.lessons)
-export const askForExplanation = ({ runId, code, language, style, interests = [] }) =>
+export const getLearnerLink = () => request('/api/learner/link').then((r) => r.link)
+export const joinClass = (code) => request('/api/learner/join', { method: 'POST', body: { code } }).then((r) => r.link)
+export const checkJoinCode = (code) => request('/api/auth/check-code', { method: 'POST', body: { code } }).then((r) => r.valid)
+export const askForExplanation = ({ runId, language, style, interests = [] }) =>
   request('/api/learner/explain', {
-    method: 'POST', body: { run_id: runId, learner_code: code || null, language: language || 'en', style, interests },
+    method: 'POST', body: { run_id: runId, language: language || 'en', style, interests },
   }).then((r) => r.run_id)
+
+export const recordActivity = (runId, kind, data = {}) =>
+  request('/api/learner/activity', { method: 'POST', body: { run_id: runId, kind, data } }).catch(() => null)
+export const getLearnerProgress = () => request('/api/learner/progress')
+
+// ---------------------------------------------------------------- teacher workspace (stored on the server)
+
+const WORKSPACE_KIND = { classes: 'classes', learners: 'profiles', lessons: 'lessons' }
+export const loadWorkspace = () => request('/api/teacher/workspace')
+export const saveWorkspaceDoc = (kind, doc) =>
+  request(`/api/teacher/workspace/${WORKSPACE_KIND[kind]}/${encodeURIComponent(doc.id)}`, { method: 'PUT', body: doc })
+export const deleteWorkspaceDoc = (kind, id) =>
+  request(`/api/teacher/workspace/${WORKSPACE_KIND[kind]}/${encodeURIComponent(id)}`, { method: 'DELETE' })
+export const resetLearnerPictures = (profileId) =>
+  request(`/api/teacher/workspace/profiles/${encodeURIComponent(profileId)}/reset-pictures`, { method: 'POST' })
+export const getClassInsights = (classId) => request(`/api/teacher/insights?class_id=${encodeURIComponent(classId)}`)
+
+// ---------------------------------------------------------------- teaching materials (teacher)
+
+export const listResources = () => request('/api/teacher/resources').then((r) => r.resources)
+export const uploadResource = (body) => request('/api/teacher/resources', { method: 'POST', body })
+export const getResourceText = (id) => request(`/api/teacher/resources/${encodeURIComponent(id)}/text`).then((r) => r.text)
+export const deleteResource = (id) => request(`/api/teacher/resources/${encodeURIComponent(id)}`, { method: 'DELETE' })
+// Files need the session header, so they are fetched as a blob and opened from memory.
+export async function openResourceFile(id) {
+  const token = getAuthToken()
+  const res = await fetch(`${BASE}/api/teacher/resources/${encodeURIComponent(id)}/file`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  }).catch(() => null)
+  if (!res?.ok) throw new ApiError('This file could not be opened.', res?.status || 0)
+  return URL.createObjectURL(await res.blob())
+}
+
+// ---------------------------------------------------------------- classroom codes (teacher)
+
+export const getRoster = () => request('/api/teacher/roster')
+export const issueJoinCode = ({ classId, className, learnerProfileId = null, learnerLabel = null }) =>
+  request('/api/teacher/join-codes', {
+    method: 'POST',
+    body: { class_id: classId, class_name: className, learner_profile_id: learnerProfileId, learner_label: learnerLabel },
+  })
+export const revokeJoinCode = (code) => request(`/api/teacher/join-codes/${encodeURIComponent(code)}`, { method: 'DELETE' })
+export const unlinkLearner = (accountId) => request(`/api/teacher/learners/${encodeURIComponent(accountId)}`, { method: 'DELETE' })
 
 // ---------------------------------------------------------------- live events
 
 // Fetch is used instead of EventSource so the authenticated session can be sent in a header.
-export function streamRun(runId, { onEvent, onEnd, onError }) {
+export function streamRun(runId, { onEvent, onEnd, onError, learner = false }) {
   let closed = false
   let controller
   let lastEventId = 0
@@ -93,7 +149,7 @@ export function streamRun(runId, { onEvent, onEnd, onError }) {
       try {
         controller = new AbortController()
         const token = getAuthToken()
-        const res = await fetch(`${BASE}/api/runs/${runId}/events`, {
+        const res = await fetch(`${BASE}/api/${learner ? 'learner/' : ''}runs/${runId}/events`, {
           headers: {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             ...(lastEventId ? { 'Last-Event-ID': String(lastEventId) } : {}),
@@ -149,11 +205,14 @@ export function streamRun(runId, { onEvent, onEnd, onError }) {
 }
 
 // Resolves with the finished run; onEvent receives every event as it happens.
-export function runToCompletion(runId, onEvent) {
+// Learners follow their own explanation runs through the learner endpoints.
+export function runToCompletion(runId, onEvent, { learner = false } = {}) {
+  const fetchRun = () => (learner ? request(`/api/learner/runs/${runId}`) : getRun(runId))
   return new Promise((resolve, reject) => {
     streamRun(runId, {
       onEvent,
-      onEnd: () => getRun(runId).then(resolve, reject),
+      learner,
+      onEnd: () => fetchRun().then(resolve, reject),
       onError: reject,
     })
   })
@@ -173,6 +232,7 @@ export function buildLessonRequest(form, classLearners, { lessonId, offline }) {
     })),
     constraints: constraintsFromForm(form),
     lesson_id: lessonId,
+    class_id: form.classId,
     offline: !!offline,
   }
 }

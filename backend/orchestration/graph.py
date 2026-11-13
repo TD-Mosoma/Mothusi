@@ -40,6 +40,7 @@ class PlanState(TypedDict, total=False):
     trace: RunTrace
     llm: LLMClient
     req: LessonRequest
+    owner_id: str | None
     memory: list[dict]
     work_plan: WorkPlan
     personalise_ids: list[str]
@@ -77,7 +78,7 @@ def build_graph(orch: "Orchestrator"):
         return {"req": orch._screen(s["trace"], s["req"])}
 
     def recall(s: PlanState) -> dict:
-        return {"memory": orch.tracker.recall(orch.store, s["trace"], s["req"])}
+        return {"memory": orch.tracker.recall(orch.store, s["trace"], s["req"], s.get("owner_id"), orch.activity)}
 
     def plan(s: PlanState) -> dict:
         trace, req = s["trace"], s["req"]

@@ -1067,9 +1067,13 @@ const additionalCopy = {
 
 const languageIndex = { tn: 0, zu: 1, xh: 2, af: 3, st: 4, ve: 5, nso: 6, nr: 7, ss: 8, ts: 9 }
 
+// Wording that changed after it was translated: the new English text reuses the existing translation.
+const ALIASES = { 'Log out': 'Sign out', 'Could not log out. Please try again.': 'Could not sign out. Please try again.' }
+
 export function translate(lang, text, values = {}) {
   const index = languageIndex[lang]
-  let result = index === undefined ? text : (copy[text]?.[index] || additionalCopy[lang]?.[text] || text)
+  const key = ALIASES[text] && !(copy[text] || additionalCopy[lang]?.[text]) ? ALIASES[text] : text
+  let result = index === undefined ? text : (copy[key]?.[index] || additionalCopy[lang]?.[key] || text)
   for (const [key, value] of Object.entries(values)) {
     result = result.replaceAll(`{${key}}`, String(value))
   }

@@ -14,6 +14,7 @@ const TYPE_TONE = {
   check_passed: 'ok', run_completed: 'ok', check_failed: 'bad', run_failed: 'bad', error: 'bad',
   repair: 'warn', llm_retry: 'warn', warning: 'warn', decision: 'route', plan: 'route',
 }
+const HIDDEN_DATA = new Set(['reasoning', 'model', 'live'])
 const KEY_TYPES = new Set(['plan', 'decision', 'check_failed', 'check_passed', 'warning', 'repair', 'run_completed', 'run_failed'])
 
 export const formatClock = (iso) => {
@@ -23,7 +24,7 @@ export const formatClock = (iso) => {
 }
 const seconds = (ms) => `${(ms / 1000).toFixed(1)}s`
 
-function agentStates(events) {
+export function agentStates(events) {
   const plan = events.find((e) => e.type === 'plan')
   const planned = new Set((plan?.data?.steps || []).flatMap((s) => s.agent.split(' + ')))
   const skipped = new Set((plan?.data?.steps || []).filter((s) => s.action.startsWith('Skipped')).map((s) => s.agent))
@@ -57,7 +58,7 @@ function useTicker(active) {
   return now
 }
 
-export default function AgentTimeline({ events, status, title = 'Agents at work', compact = false }) {
+export default function AgentTimeline({ events, status, title = 'How Mothusi worked', compact = false }) {
   const [agentFilter, setAgentFilter] = useState(null)
   const [keyOnly, setKeyOnly] = useState(false)
   const [follow, setFollow] = useState(true)
@@ -69,8 +70,7 @@ export default function AgentTimeline({ events, status, title = 'Agents at work'
   const last = events[events.length - 1]
   const elapsed = running && started ? now - new Date(started.ts).getTime() : last?.elapsed_ms || 0
 
-  const model = started?.data?.model
-  const live = started?.data?.live
+    const live = started?.data?.live
   const states = useMemo(() => agentStates(events), [events])
   const counts = useMemo(() => ({
     calls: events.filter((e) => e.type === 'agent_output' && e.duration_ms != null).length,
@@ -102,7 +102,7 @@ export default function AgentTimeline({ events, status, title = 'Agents at work'
         <div>
           <h2>{title}</h2>
           <p className="muted small-text">
-            {model ? <>Model: <strong>{model}</strong>{live === false && model ? ' (rule-based, for rehearsal and fallback)' : ''}</> : 'Waiting for the orchestrator'}
+            {started ? (live ? 'Live AI agents' : 'Practice mode: rule-based, no AI. For rehearsing and as a fallback.') : 'Waiting for the orchestrator'}
           </p>
         </div>
         <div className="at-status">
@@ -164,7 +164,8 @@ export default function AgentTimeline({ events, status, title = 'Agents at work'
 function EventRow({ e }) {
   const tone = TYPE_TONE[e.type] || ''
   const reasoning = e.data?.reasoning
-  const data = e.data ? Object.fromEntries(Object.entries(e.data).filter(([k]) => k !== 'reasoning')) : null
+  const data = e.data ? Object.fromEntries(Object.entries(e.data).filter(([k]) => !HIDDEN_DATA.has(k))) : null
+  const detail = e.type === 'run_started' ? null : e.detail // the start event only names the models
   const hasData = data && Object.keys(data).length > 0
   return (
     <li className={`at-event ${tone}`} data-agent={AGENT_KEY[e.agent] || 'orch'}>
@@ -179,7 +180,7 @@ function EventRow({ e }) {
           <strong>{e.title}</strong>
           {e.duration_ms != null && <span className="at-dur">{seconds(e.duration_ms)}</span>}
         </div>
-        {e.detail && <p className="at-detail">{e.detail}</p>}
+        {detail && <p className="at-detail">{detail}</p>}
         {(reasoning || hasData) && (
           <details className="at-more">
             <summary>{reasoning ? 'How the agent reasoned' : 'Details'}</summary>

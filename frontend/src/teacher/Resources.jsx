@@ -3,12 +3,13 @@ import { Link } from 'react-router-dom'
 import { useTeacher } from './TeacherContext.jsx'
 import { MATERIAL_TYPES, unique, byGrade } from './curriculum.js'
 import { formatDate, formatSize } from './format.js'
+import { openResourceFile } from '../services/api.js'
 
-const ACCEPT = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.png,.jpg,.jpeg'
+const ACCEPT = '.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.md,.png,.jpg,.jpeg'
 const MAX_BYTES = 10 * 1024 * 1024
 
 export default function Resources() {
-  const { profile, resources, addResource, deleteResource } = useTeacher()
+  const { profile, resources, resourcesError, addResource, deleteResource, notify } = useTeacher()
   const fileRef = useRef(null)
 
   const grades = [...profile.grades].sort(byGrade)
@@ -19,6 +20,7 @@ export default function Resources() {
   })
   const [error, setError] = useState('')
   const [done, setDone] = useState('')
+  const [uploading, setUploading] = useState(false)
   const [fGrade, setFGrade] = useState('all')
   const [fSubject, setFSubject] = useState('all')
 
@@ -37,23 +39,51 @@ export default function Resources() {
     setForm((f) => ({ ...f, file, title: f.title || (file ? file.name.replace(/\.[^.]+$/, '') : '') }))
   }
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
     if (!form.grade || !form.subject) return setError('Choose a grade and a subject.')
     if (!form.file) return setError('Choose a file to upload.')
     if (form.title.trim().length < 2) return setError('Give the material a title.')
     setError('')
-    addResource({
-      file: form.file, grade: form.grade, subject: form.subject, type: form.type,
-      title: form.title.trim(), topic: form.topic.trim(),
-    })
-    setDone(`"${form.title.trim()}" was added to ${form.grade} ${form.subject}.`)
-    setForm((f) => ({ ...f, title: '', topic: '', file: null }))
-    if (fileRef.current) fileRef.current.value = ''
+    setDone('')
+    setUploading(true)
+    try {
+      const saved = await addResource({
+        file: form.file, grade: form.grade, subject: form.subject, type: form.type,
+        title: form.title.trim(), topic: form.topic.trim(),
+      })
+      const read = saved.text_chars ? ` Mothusi can read its text and use it when you plan a ${form.grade} ${form.subject} lesson.` : ''
+      setDone(`"${saved.title}" was added to ${form.grade} ${form.subject}.${read}${saved.note ? ` ${saved.note}` : ''}`)
+      setForm((f) => ({ ...f, title: '', topic: '', file: null }))
+      if (fileRef.current) fileRef.current.value = ''
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setUploading(false)
+    }
   }
 
-  const remove = (r) => {
-    if (window.confirm(`Delete "${r.title}"?`)) deleteResource(r.id)
+  const remove = async (r) => {
+    if (!window.confirm(`Delete "${r.title}"? This cannot be undone.`)) return
+    try {
+      await deleteResource(r.id)
+      notify(`Deleted "${r.title}".`)
+    } catch (err) {
+      setError(err.message)
+    }
+  }
+
+  const open = async (r) => {
+    const tab = window.open('', '_blank') // opened now so the browser does not block it
+    try {
+      const url = await openResourceFile(r.id)
+      if (tab) tab.location.href = url
+      else window.location.href = url
+      setTimeout(() => URL.revokeObjectURL(url), 60000)
+    } catch (err) {
+      tab?.close()
+      setError(err.message)
+    }
   }
 
   const shown = resources.filter(
@@ -70,7 +100,7 @@ export default function Resources() {
       <div className="t-page-head">
         <div>
           <h1>Resources</h1>
-          <p className="muted">Upload curriculum and teaching materials for the grades and subjects you teach.</p>
+          <p className="muted">Upload your CAPS documents, notes and worksheets. Mothusi reads the text of PDF, Word and text files and plans from it.</p>
         </div>
       </div>
 
@@ -105,19 +135,19 @@ export default function Resources() {
 
         <label className="t-field">File
           <input ref={fileRef} type="file" accept={ACCEPT} onChange={pickFile} />
-          <span className="t-hint">PDF, Word, PowerPoint, Excel, text or image files up to 10 MB.</span>
+          <span className="t-hint">PDF, Word, PowerPoint, Excel, text or image files up to 10 MB. Mothusi can read the text of PDF, Word (.docx) and text files.</span>
         </label>
 
         {error && <p className="t-error" role="alert">{error}</p>}
         {done && <p className="t-success" role="status">{done}</p>}
 
         <div className="row">
-          <button type="submit" className="btn">Upload</button>
+          <button type="submit" className="btn" disabled={uploading}>{uploading ? 'Uploading…' : 'Upload'}</button>
           <span className="muted">
-            Need another grade or subject? Update it in <Link to="/teacher/profile">My Profile</Link>.
+            Need another grade or subject? Update it in your <Link to="/teacher/profile">Profile</Link>.
           </span>
         </div>
-        <p className="t-hint">Uploads are kept in this browser until the account is connected to storage.</p>
+        <p className="t-hint">Materials are saved to your Mothusi account. Only you can see them.</p>
       </form>
 
       <section className="card stack">
@@ -140,7 +170,8 @@ export default function Resources() {
           </div>
         )}
 
-        {resources.length === 0 && <p className="muted">Nothing uploaded yet. Add your first material above.</p>}
+        {resourcesError && <p className="t-error" role="alert">{resourcesError}</p>}
+        {resources.length === 0 && !resourcesError && <p className="muted">Nothing uploaded yet. Add your first material above.</p>}
         {resources.length > 0 && shown.length === 0 && <p className="muted">No materials match these filters.</p>}
 
         {groups.map((key) => {
@@ -156,11 +187,12 @@ export default function Resources() {
                       <div className="row tight">
                         <span className="chip">{r.type}</span>
                         {r.topic && <span className="chip">{r.topic}</span>}
+                        <span className={`chip ${r.text_chars ? 'ok' : ''}`}>{r.text_chars ? 'Mothusi can read it' : 'Title only'}</span>
                       </div>
-                      <span className="muted small-text">{r.fileName} • {formatSize(r.size)} • Added {formatDate(r.uploadedAt)}</span>
+                      <span className="muted small-text">{r.filename} • {formatSize(r.size)} • Added {formatDate(r.created_at)}</span>
                     </div>
                     <div className="row tight">
-                      <a href={r.url} target="_blank" rel="noreferrer" className="btn secondary small">Open</a>
+                      <button type="button" className="btn secondary small" onClick={() => open(r)}>Open</button>
                       <button type="button" className="btn danger small" onClick={() => remove(r)}>Delete</button>
                     </div>
                   </li>

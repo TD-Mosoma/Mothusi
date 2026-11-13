@@ -46,7 +46,7 @@
 }
 .tob-field input:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .tob-hint { font-family: var(--font-body); font-weight: 400; color: var(--ink-soft); font-size: 0.85rem; }
-.tob-error { font-family: var(--font-body); font-weight: 400; color: #A8412B; font-size: 0.9rem; margin: 0; }
+.tob-error { font-family: var(--font-body); font-weight: 400; color: var(--danger-ink); font-size: 0.9rem; margin: 0; }
 
 .tob-group {
   border: 1px solid var(--line);
@@ -72,8 +72,8 @@
   cursor: pointer;
 }
 .tob-chip:hover { background: var(--surface-tint); }
-.tob-chip.selected { background: var(--brand-strong); border-color: var(--brand-strong); color: #fff; }
+.tob-chip.selected { background: var(--brand-strong); border-color: var(--brand-strong); color: var(--on-brand); }
 
 @media (max-width: 480px) {
   .tob-card { padding: var(--s-5) var(--s-4); }
-}
+}.tob-logo .brand-lockup { --logo-h: 40px; }

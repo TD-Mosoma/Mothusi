@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useTeacher } from './TeacherContext.jsx'
 import { GRADES, subjectsFor } from './curriculum.js'
+import { describeConditions } from './format.js'
 
 // Used for both "Add class" and "Edit class"
 function ClassForm({ initial, submitLabel, onSave, onCancel }) {
@@ -77,9 +79,7 @@ function ClassDetail({ cls, onArchived }) {
     setNewName('')
   }
 
-  const remove = (l) => {
-    if (window.confirm(`Remove ${l.name} from ${cls.name}?`)) removeLearner(l.id)
-  }
+  const remove = (l) => removeLearner(l.id) // the toast offers Undo
 
   const archive = () => {
     if (window.confirm(`Archive ${cls.name}? Its lesson history is kept and you can restore it later.`)) {
@@ -100,6 +100,13 @@ function ClassDetail({ cls, onArchived }) {
       {saved && <p className="t-success" role="status">Class saved.</p>}
 
       <div className="stack">
+        <h3>Usual classroom conditions</h3>
+        <p className="muted">
+          {cls.conditions ? describeConditions(cls.conditions) : 'Not saved yet. They are saved the first time you prepare a lesson for this class.'}
+        </p>
+      </div>
+
+      <div className="stack">
         <h3>Learners with support profiles</h3>
         {classLearners.length === 0 && <p className="muted">No learner profiles yet. Add one below.</p>}
         <ul className="t-list">
@@ -116,7 +123,7 @@ function ClassDetail({ cls, onArchived }) {
           </label>
           <button type="submit" className="btn secondary">Add learner</button>
         </form>
-        <p className="muted">Add strengths and support details in Learner Profiles.</p>
+        <p className="muted">Add strengths, support and codes in <Link to="/teacher/profiles">Learners &amp; codes</Link>.</p>
       </div>
 
       <div className="t-danger-zone">
@@ -139,10 +146,10 @@ export default function MyClasses() {
     <div className="stack">
       <div className="t-page-head">
         <div>
-          <h1>My Classes</h1>
+          <h1>Classes</h1>
           <p className="muted">Manage the classes and grade groups you currently teach.</p>
         </div>
-        <button type="button" className="btn" onClick={() => { setAdding(true); setSelectedId(null) }}>+ Add class</button>
+        <button type="button" className="btn" onClick={() => { setAdding(true); setSelectedId(null) }}>Add class</button>
       </div>
 
       {adding && (
@@ -158,13 +165,13 @@ export default function MyClasses() {
       )}
 
       {active.length === 0 && !adding && (
-        <p className="card muted">You have no active classes. Choose "+ Add class" to create one.</p>
+        <p className="card muted">You have no active classes. Choose "Add class" to create one.</p>
       )}
 
       <div className="t-class-grid">
         {active.map((c) => (
           <article key={c.id} className={`card t-class-card ${c.id === selectedId ? 'selected' : ''}`}>
-            <h2>{c.name}</h2>
+            <h2>{c.name} {c.sample && <span className="chip sample">Sample</span>}</h2>
             <p className="muted">{c.subjects.join(', ')}</p>
             <p>{c.size} learners{c.classTeacher ? ' • Class teacher' : ''}</p>
             <button type="button" className="btn secondary small" aria-pressed={c.id === selectedId}
