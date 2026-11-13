@@ -1,23 +1,30 @@
 # Mothusi backend
 
-## Run locally
+FastAPI service that runs Mothusi's agent workflows, built on LangGraph. See the root README for the architecture and demo script.
 
-From this directory, start the API with:
-
-```powershell
-$env:MOTHUSI_DEMO_MODE = "true"
-python -m uvicorn api:app --reload
+```bash
+cp .env.example .env
+uv sync
+uv run uvicorn main:app --reload --port 8000
+uv run pytest
+uv run python -m scripts.demo --offline
 ```
 
-The demo mode returns clearly labelled sample adaptations and does not call an AI
-provider. To use the CrewAI workflow instead, install the project dependencies,
-set `NVIDIA_API_KEY` in the environment, and run Uvicorn without demo mode:
+## API
 
-```powershell
-python -m pip install -e .
-$env:NVIDIA_API_KEY = "your-key"
-python -m uvicorn api:app --reload
-```
-
-The API listens on `http://127.0.0.1:8000`. Check `/api/health` for status.
-Lesson generation is available at `POST /api/lessons/generate`.
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/health` | Which model the agents use |
+| GET | `/api/graph` | The LangGraph workflow's nodes and edges, for the live graph |
+| POST | `/api/runs` | Start a lesson plan (returns `run_id`) |
+| GET | `/api/runs/{id}/events` | Live Server-Sent Events stream; replays stored runs; resumes with `Last-Event-ID` |
+| GET | `/api/runs/{id}` | Run status, request and result (`?events=true` adds the trace) |
+| GET | `/api/runs` | Recent runs for the Agent Activity page |
+| POST | `/api/runs/{id}/replan` | Re-plan after a condition change or teacher note |
+| POST | `/api/runs/{id}/recheck` | Review a teacher-edited plan |
+| POST | `/api/runs/{id}/approve` | Approve and share with learners |
+| POST | `/api/feedback` | Record post-lesson feedback (Progress Tracker) |
+| GET | `/api/memory` | Stored feedback for learners |
+| GET | `/api/learner/lessons` | Lessons teachers have approved for learners, newest first |
+| GET | `/api/learner/lesson` | An approved lesson (`run_id`, or the latest) for a learner code and language |
+| POST | `/api/learner/explain` | "Explain it another way" for a learner |

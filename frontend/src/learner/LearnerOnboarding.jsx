@@ -3,14 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { saveLearnerProfile } from '../services/profile.js'
 import './onboarding.css'
 
-const AGES = [5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
-const GRADES = ['Grade R', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8', 'Grade 9']
-const LANGUAGES = [
-  { code: 'en', label: 'English' },
-  { code: 'tn', label: 'Setswana' },
-  { code: 'zu', label: 'isiZulu' },
-  { code: 'xh', label: 'isiXhosa' },
-]
+import { GRADES, LANGUAGES } from '../teacher/curriculum.js'
+
+const AGES = [6, 7, 8, 9, 10, 11]
 const INTERESTS = [
   { id: 'football', label: 'Football', icon: '⚽' },
   { id: 'music', label: 'Music', icon: '🎵' },
@@ -28,7 +23,7 @@ export default function LearnerOnboarding() {
   const navigate = useNavigate()
   const [step, setStep] = useState(0)
   const [data, setData] = useState({
-    fullName: '', age: null, grade: '', language: '', interests: [],
+    fullName: '', age: null, grade: '', language: '', interests: [], code: '',
   })
 
   const set = (key, value) => setData((d) => ({ ...d, [key]: value }))
@@ -94,8 +89,22 @@ export default function LearnerOnboarding() {
       ),
     },
     {
+      title: 'Do you have a learner code?',
+      hint: 'Your teacher can give you a code like L-003. It helps Mothusi show your own lesson. You can skip this.',
+      valid: true,
+      body: (
+        <input
+          className="ob-input"
+          value={data.code}
+          onChange={(e) => set('code', e.target.value.toUpperCase().trim())}
+          placeholder="L-000"
+          aria-label="Learner code"
+        />
+      ),
+    },
+    {
       title: 'What do you love?',
-      hint: `Pick up to ${MAX_INTERESTS}. Your lessons will use things you like.`,
+      hint: `Pick up to ${MAX_INTERESTS}. When you ask for another explanation, Mothusi uses things you like.`,
       valid: data.interests.length > 0,
       body: (
         <div className="ob-grid">

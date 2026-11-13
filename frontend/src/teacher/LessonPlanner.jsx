@@ -1,158 +1,146 @@
-import { useEffect, useState } from 'react'
+﻿import { useEffect, useRef, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useTeacher } from './TeacherContext.jsx'
-import { unique, byGrade } from './curriculum.js'
+import { subjectsFor, languageLabel } from './curriculum.js'
 import { tomorrowISO } from './format.js'
-import { generateLessonDraft, getBackendHealth, WORKFLOW_STAGES } from '../services/api.js'
-
-const stageText = (stage, s) => {
-  if (s.status === 'running') return `In progress • ${stage.desc}`
-  if (s.status === 'done') return `Completed • ${s.detail}`
-  if (s.status === 'retry') return s.detail
-  if (s.status === 'failed') return `Failed • ${s.detail}`
-  return `Queued • ${stage.desc}`
-}
+import { buildLessonRequest, lessonFieldsFromRun, startPlan } from '../services/api.js'
+import { useRunStream } from '../hooks/useRunStream.js'
+import AgentTimeline from '../components/AgentTimeline.jsx'
+import ModelStatus from '../components/ModelStatus.jsx'
+import ConstraintFields from './ConstraintFields.jsx'
 
 export default function LessonPlanner() {
   const navigate = useNavigate()
-  const { profile, classes, learners, resources, addLesson } = useTeacher()
+  const { classes, learners, resources, addLesson, newLessonId } = useTeacher()
   const activeClasses = classes.filter((c) => !c.archived)
-
   const first = activeClasses[0]
+
+  const subjectOptions = (cls) => (cls ? cls.subjects.filter((s) => subjectsFor(cls.grade).includes(s)) : [])
   const [form, setForm] = useState({
     classId: first?.id || '',
-    grade: first?.grade || '',
-    subject: first?.subjects[0] || '',
+    subject: subjectOptions(first)[0] || '',
     topic: '',
     date: tomorrowISO(),
     objectives: '',
     notes: '',
     resourceId: '',
     noPrinter: true,
+    hasDevices: false,
     noisyHall: false,
+    conditionNotes: '',
     learnerCount: first?.size || 30,
     lessonMinutes: 45,
     supportMinutes: 5,
+    prepMinutes: 30,
+    offline: false,
   })
   const [errors, setErrors] = useState({})
-  const [view, setView] = useState('form') // 'form' | 'working'
-  const [steps, setSteps] = useState([])
-  const [error, setError] = useState('')
-  const [finished, setFinished] = useState(null) // lesson id when the draft is ready
-  const [backendStatus, setBackendStatus] = useState('Checking backend...')
-
-  useEffect(() => {
-    getBackendHealth()
-      .then(({ generator }) => {
-        const status = {
-          demo: 'Connected to backend · local demo mode',
-          ready: 'Connected to backend · AI generation ready',
-          unconfigured: 'Connected to backend · NVIDIA_API_KEY not configured',
-          dependencies_missing: 'Connected to backend · CrewAI dependencies missing',
-        }[generator]
-        setBackendStatus(status || 'Connected to backend')
-      })
-      .catch(() => setBackendStatus('Backend unavailable · start the backend to generate lessons'))
-  }, [])
+  const [runId, setRunId] = useState(null)
+  const [lessonId, setLessonId] = useState(null)
+  const [startError, setStartError] = useState('')
+  const [health, setHealth] = useState(undefined)
+  const saved = useRef(null)
+  const { events, status, run } = useRunStream(runId)
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }))
   const cls = activeClasses.find((c) => c.id === form.classId)
+  const classLearners = learners.filter((l) => l.classId === form.classId)
+  const matching = resources.filter((r) => r.grade === cls?.grade && r.subject === form.subject)
 
   const changeClass = (id) => {
     const c = activeClasses.find((x) => x.id === id)
-    setForm((f) => ({
-      ...f, classId: id, grade: c?.grade || f.grade, subject: c?.subjects[0] || '', learnerCount: c?.size || f.learnerCount, resourceId: '',
-    }))
+    setForm((f) => ({ ...f, classId: id, subject: subjectOptions(c)[0] || '', learnerCount: c?.size || f.learnerCount, resourceId: '' }))
   }
 
-  const gradeOptions = unique([...profile.grades, cls?.grade]).sort(byGrade)
-  const subjectOptions = cls ? cls.subjects : profile.subjects
-  const matching = resources.filter((r) => r.grade === form.grade && r.subject === form.subject)
+  // Save the lesson once the agents have finished.
+  useEffect(() => {
+    if (status !== 'done' || !run?.result || saved.current === run.id) return
+    saved.current = run.id
+    const attached = resources.find((r) => r.id === form.resourceId)
+    addLesson({
+      id: lessonId,
+      title: `${cls.grade} ${form.subject}: ${form.topic.trim()}`,
+      classId: form.classId, grade: cls.grade, subject: form.subject, topic: form.topic.trim(),
+      date: form.date, objectives: form.objectives.trim(), notes: form.notes.trim(),
+      attachedResource: attached ? attached.title : '',
+      version: 1, feedback: null, note: '', offline: form.offline,
+      runs: [{ runId: run.id, kind: 'plan', at: run.created_at, version: 1 }],
+      history: [{ at: new Date().toISOString(), by: 'Mothusi', note: 'Draft generated by the agent team', runId: run.id }],
+      ...lessonFieldsFromRun(run),
+    })
+  }, [status, run])
 
   const validate = () => {
     const e = {}
     if (!form.classId) e.classId = 'Choose a class.'
+    if (!form.subject) e.subject = 'This class has no Grades 1–4 subject yet. Add one in My Classes.'
     if (form.topic.trim().length < 2) e.topic = 'Enter the lesson topic.'
     if (form.objectives.trim().length < 5) e.objectives = 'Describe what learners should be able to do.'
     if (!form.date) e.date = 'Choose a lesson date.'
-    if (Number(form.lessonMinutes) < 10) e.lessonMinutes = 'Lessons need at least 10 minutes.'
+    if (Number(form.lessonMinutes) < 10 || Number(form.lessonMinutes) > 120) e.lessonMinutes = 'Use 10 to 120 minutes.'
+    if (Number(form.supportMinutes) < 0 || Number(form.supportMinutes) > 60) e.supportMinutes = 'Use 0 to 60 minutes.'
+    if (Number(form.prepMinutes) < 0 || Number(form.prepMinutes) > 240) e.prepMinutes = 'Use 0 to 240 minutes.'
+    if (Number(form.learnerCount) < 1 || Number(form.learnerCount) > 80) e.learnerCount = 'Use 1 to 80 learners.'
     setErrors(e)
     return Object.keys(e).length === 0
   }
 
-  const run = async () => {
-    setError('')
-    setFinished(null)
-    setView('working')
-    setSteps(WORKFLOW_STAGES.map(() => ({ status: 'queued', detail: '' })))
-
-    const classLearners = learners.filter((l) => l.classId === form.classId)
+  const start = async (offline = form.offline) => {
+    setStartError('')
+    const id = lessonId || newLessonId()
+    setLessonId(id)
     const attached = resources.find((r) => r.id === form.resourceId)
+    const notes = attached ? `${form.notes}\n\nAttached material: ${attached.title}` : form.notes
     try {
-      const draft = await generateLessonDraft(
-        { ...form, lessonMinutes: Number(form.lessonMinutes), supportMinutes: Number(form.supportMinutes) },
-        classLearners,
-        (i, update) => setSteps((s) => s.map((x, idx) => (idx === i ? { ...x, ...update } : x)))
-      )
-      const id = addLesson({
-        title: `${form.grade} ${form.subject} – ${form.topic.trim()}`,
-        classId: form.classId, grade: form.grade, subject: form.subject, topic: form.topic.trim(),
-        date: form.date, objectives: form.objectives.trim(), notes: form.notes.trim(),
-        attachedResource: attached ? attached.title : '',
-        status: 'awaiting_review', version: 1, needsRecheck: false, feedback: null, note: '',
-        constraints: { noPrinter: form.noPrinter, noisyHall: form.noisyHall, learners: Number(form.learnerCount), lessonMinutes: Number(form.lessonMinutes), supportMinutes: Number(form.supportMinutes) },
-        history: [{ at: new Date().toISOString(), by: 'Mothusi', note: 'Draft generated' }],
-        ...draft,
-      })
-      setFinished(id)
-    } catch (generationError) {
-      setSteps((s) => s.map((x) => (x.status === 'running' || x.status === 'retry' ? { ...x, status: 'failed', detail: 'This stage did not finish.' } : x)))
-      setError(`${generationError.message} Nothing was saved. Try again after addressing the issue.`)
+      const newRun = await startPlan(buildLessonRequest({ ...form, grade: cls.grade, notes }, classLearners, { lessonId: id, offline }))
+      setForm((f) => ({ ...f, offline }))
+      setRunId(newRun)
+    } catch (err) {
+      setStartError(err.message)
     }
   }
 
-  const analyse = (e) => {
+  const submit = (e) => {
     e.preventDefault()
-    if (validate()) run()
+    if (validate()) start()
   }
 
-  // ---------- Agent workflow view ----------
-  if (view === 'working') {
-    const busy = !finished && !error
+  // ---------- Live agent view ----------
+  if (runId) {
+    const finished = status === 'done'
+    const failed = status === 'failed' || status === 'disconnected'
     return (
       <div className="stack">
         <div className="t-page-head">
           <div>
-            <h1>{finished ? 'Your lesson draft is ready' : 'Mothusi is preparing your lesson'}</h1>
-            <p className="muted">See each stage of the workflow and whether it completed successfully.</p>
+            <h1>{finished ? 'Your lesson draft is ready' : failed ? 'Mothusi stopped safely' : 'Mothusi is preparing your lesson'}</h1>
+            <p className="muted">
+              {cls.grade} {form.subject}: {form.topic}. Watch each agent plan, check and correct the work as it happens.
+            </p>
+          </div>
+          <div className="row tight">
+            {finished && <button type="button" className="btn" onClick={() => navigate(`/teacher/lessons/${lessonId}`)}>Review lesson plan</button>}
           </div>
         </div>
 
-        <section className="card stack" aria-live="polite">
-          <ol className="t-stages">
-            {WORKFLOW_STAGES.map((stage, i) => {
-              const s = steps[i] || { status: 'queued' }
-              return (
-                <li key={stage.key} className={s.status}>
-                  <span className="t-stage-num" aria-hidden="true">{i + 1}</span>
-                  <div>
-                    <strong>{stage.label}</strong>
-                    <span>{stageText(stage, s)}</span>
-                  </div>
-                </li>
-              )
-            })}
-          </ol>
-          {error && <p className="t-error" role="alert">{error}</p>}
-          <div className="row">
-            {finished && <button type="button" className="btn" onClick={() => navigate(`/teacher/lessons/${finished}`)}>Review lesson plan</button>}
-            {error && <button type="button" className="btn" onClick={run}>Try again</button>}
-            {!busy && <button type="button" className="btn secondary" onClick={() => setView('form')}>Back to lesson details</button>}
-          </div>
-        </section>
+        <AgentTimeline events={events} status={status} title="Agent activity" />
 
+        {failed && (
+          <section className="card stack">
+            <p className="t-error" role="alert">{run?.error || 'The connection to Mothusi was lost. Nothing was saved.'}</p>
+            <div className="row">
+              <button type="button" className="btn" onClick={() => start(form.offline)}>Try again</button>
+              {!form.offline && <button type="button" className="btn secondary" onClick={() => start(true)}>Use the offline demo model</button>}
+              <button type="button" className="btn ghost" onClick={() => setRunId(null)}>Back to lesson details</button>
+            </div>
+          </section>
+        )}
+        {finished && run?.result?.warnings?.length > 0 && (
+          <p className="t-note">{run.result.warnings.length} item(s) need your attention. They are listed on the review page.</p>
+        )}
         <p className="t-note">
-          If a check fails, Mothusi shows it and retries up to a set limit. It never marks a failed stage as complete.
+          Mothusi retries a rejected step only up to a set limit. It never marks a failed check as passed; anything it
+          cannot fix is flagged for your decision.
         </p>
       </div>
     )
@@ -174,34 +162,22 @@ export default function LessonPlanner() {
         <div>
           <h1>Create a lesson plan</h1>
           <p className="muted">Tell Mothusi what you are teaching and the conditions it must plan around.</p>
-          <p className="muted small-text" role="status">{backendStatus}</p>
         </div>
       </div>
 
-      <form className="card stack" onSubmit={analyse} noValidate>
+      <form className="card stack" onSubmit={submit} noValidate>
         <div className="t-form-grid">
           <label className="t-field">Class
             <select value={form.classId} onChange={(e) => changeClass(e.target.value)}>
-              {activeClasses.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {activeClasses.map((c) => <option key={c.id} value={c.id}>{c.name} ({c.grade})</option>)}
             </select>
             {errors.classId && <span className="t-error" role="alert">{errors.classId}</span>}
           </label>
           <label className="t-field">Subject
             <select value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value, resourceId: '' }))}>
-              {subjectOptions.map((s) => <option key={s}>{s}</option>)}
+              {subjectOptions(cls).map((s) => <option key={s}>{s}</option>)}
             </select>
-          </label>
-          <label className="t-field">Grade
-            <select value={form.grade} onChange={(e) => setForm((f) => ({ ...f, grade: e.target.value, resourceId: '' }))}>
-              {gradeOptions.map((g) => <option key={g}>{g}</option>)}
-            </select>
-          </label>
-        </div>
-
-        <div className="t-form-grid">
-          <label className="t-field">Lesson topic
-            <input value={form.topic} onChange={(e) => set('topic', e.target.value)} placeholder="Fractions" />
-            {errors.topic && <span className="t-error" role="alert">{errors.topic}</span>}
+            {errors.subject && <span className="t-error" role="alert">{errors.subject}</span>}
           </label>
           <label className="t-field">Lesson date
             <input type="date" value={form.date} onChange={(e) => set('date', e.target.value)} />
@@ -209,54 +185,59 @@ export default function LessonPlanner() {
           </label>
         </div>
 
+        <label className="t-field">Lesson topic
+          <input value={form.topic} onChange={(e) => set('topic', e.target.value)} placeholder="Fractions: halves and quarters" />
+          {errors.topic && <span className="t-error" role="alert">{errors.topic}</span>}
+        </label>
+
         <label className="t-field">Learning objectives
-          <textarea rows="3" value={form.objectives} onChange={(e) => set('objectives', e.target.value)} placeholder="Represent halves, thirds and quarters." />
+          <textarea rows="3" value={form.objectives} onChange={(e) => set('objectives', e.target.value)}
+            placeholder="Recognise, name and represent halves and quarters of a whole." />
           {errors.objectives && <span className="t-error" role="alert">{errors.objectives}</span>}
         </label>
 
-        <label className="t-field">Lesson content
+        <label className="t-field">Lesson content (optional)
           <textarea rows="4" value={form.notes} onChange={(e) => set('notes', e.target.value)} placeholder="Paste your lesson notes here" />
         </label>
 
-        <label className="t-field">Attach curriculum material (optional)
+        <label className="t-field">Attach CAPS material (optional)
           <select value={form.resourceId} onChange={(e) => set('resourceId', e.target.value)}>
             <option value="">None</option>
             {matching.map((r) => <option key={r.id} value={r.id}>{r.title}</option>)}
           </select>
           <span className="t-hint">
             {matching.length === 0
-              ? <>No uploaded materials for {form.grade} {form.subject}. <Link to="/teacher/resources">Upload some in Resources</Link>.</>
-              : `Showing materials for ${form.grade} ${form.subject}.`}
+              ? <>No uploaded materials for {cls?.grade} {form.subject}. <Link to="/teacher/resources">Upload some in Resources</Link>.</>
+              : `Showing materials for ${cls?.grade} ${form.subject}.`}
           </span>
         </label>
 
-        <fieldset className="t-fieldset">
-          <legend>Classroom constraints</legend>
-          <label className="t-check">
-            <input type="checkbox" checked={form.noPrinter} onChange={(e) => set('noPrinter', e.target.checked)} />
-            No printer available
-          </label>
-          <label className="t-check">
-            <input type="checkbox" checked={form.noisyHall} onChange={(e) => set('noisyHall', e.target.checked)} />
-            Lesson is in a noisy hall
-          </label>
-          <div className="t-form-grid">
-            <label className="t-field">Learners
-              <input type="number" min="1" value={form.learnerCount} onChange={(e) => set('learnerCount', e.target.value)} />
-            </label>
-            <label className="t-field">Lesson length (minutes)
-              <input type="number" min="10" value={form.lessonMinutes} onChange={(e) => set('lessonMinutes', e.target.value)} />
-              {errors.lessonMinutes && <span className="t-error" role="alert">{errors.lessonMinutes}</span>}
-            </label>
-            <label className="t-field">Most individual support (minutes)
-              <input type="number" min="0" value={form.supportMinutes} onChange={(e) => set('supportMinutes', e.target.value)} />
-            </label>
-          </div>
-        </fieldset>
+        <section className="t-fieldset" aria-label="Learner support profiles">
+          <strong>Learner support profiles in {cls?.name}</strong>
+          {classLearners.length === 0 && <p className="muted">No profiles yet. Mothusi will plan for the whole class.</p>}
+          <ul className="t-list">
+            {classLearners.map((l) => (
+              <li key={l.id} className="t-list-row">
+                <span><strong>{l.name}</strong> <span className="muted">• {l.support || 'No support notes'}</span></span>
+                <span className="chip">{languageLabel(l.language || 'en')}</span>
+              </li>
+            ))}
+          </ul>
+          <span className="t-hint"><Link to="/teacher/profiles">Edit profiles</Link>. Only labels, strengths, support notes and the chosen language are shared with the agents.</span>
+        </section>
 
+        <ConstraintFields form={form} set={set} errors={errors} />
+
+        <label className="t-check">
+          <input type="checkbox" checked={form.offline} onChange={(e) => set('offline', e.target.checked)} />
+          Use the offline demo model (rule-based; for rehearsals or if the live model is unavailable)
+        </label>
+
+        <ModelStatus onStatus={setHealth} />
+        {startError && <p className="t-error" role="alert">{startError}</p>}
         <div className="row">
-          <button type="submit" className="btn">Analyse lesson</button>
-          <span className="muted">Mothusi analyses lesson demands and matches learner support profiles.</span>
+          <button type="submit" className="btn" disabled={health === null}>Start the agents</button>
+          <span className="muted">Eight specialist agents analyse, design, check, correct and package your lesson support.</span>
         </div>
       </form>
     </div>

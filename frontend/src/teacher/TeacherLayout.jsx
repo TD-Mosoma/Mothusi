@@ -11,6 +11,7 @@ const NAV = [
   { to: '/teacher/profiles', label: 'Learner Profiles' },
   { to: '/teacher/plan', label: 'Lesson Planner' },
   { to: '/teacher/lessons', label: 'Lesson Plans & Reviews' },
+  { to: '/teacher/activity', label: 'Agent Activity' },
   { to: '/teacher/resources', label: 'Resources' },
   { to: '/teacher/profile', label: 'My Profile' },
   { to: '/teacher/settings', label: 'Settings' },

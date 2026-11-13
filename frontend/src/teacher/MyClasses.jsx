@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useTeacher } from './TeacherContext.jsx'
-import { unique, byGrade } from './curriculum.js'
+import { GRADES, subjectsFor } from './curriculum.js'
 
 // Used for both "Add class" and "Edit class"
 function ClassForm({ initial, submitLabel, onSave, onCancel }) {
@@ -8,15 +8,16 @@ function ClassForm({ initial, submitLabel, onSave, onCancel }) {
   const [f, setF] = useState(initial)
   const [error, setError] = useState('')
 
-  const grades = unique([...profile.grades, initial.grade]).sort(byGrade)
-  const subjects = unique([...profile.subjects, ...initial.subjects])
+  const grades = GRADES.filter((g) => profile.grades.includes(g) || g === initial.grade)
+  const subjects = subjectsFor(f.grade)
   const set = (key, value) => setF((x) => ({ ...x, [key]: value }))
+  const setGrade = (grade) => setF((x) => ({ ...x, grade, subjects: x.subjects.filter((s) => subjectsFor(grade).includes(s)) }))
   const toggleSubject = (s) =>
     setF((x) => ({ ...x, subjects: x.subjects.includes(s) ? x.subjects.filter((v) => v !== s) : [...x.subjects, s] }))
 
   const submit = (e) => {
     e.preventDefault()
-    if (f.name.trim().length < 2) return setError('Give the class a name, for example Grade 4A.')
+    if (f.name.trim().length < 2) return setError('Give the class a name, for example Grade 3B.')
     if (!f.grade) return setError('Choose a grade.')
     if (f.subjects.length === 0) return setError('Choose at least one subject.')
     setError('')
@@ -27,10 +28,10 @@ function ClassForm({ initial, submitLabel, onSave, onCancel }) {
     <form className="stack" onSubmit={submit} noValidate>
       <div className="t-form-grid">
         <label className="t-field">Class name
-          <input value={f.name} onChange={(e) => set('name', e.target.value)} placeholder="Grade 4A" />
+          <input value={f.name} onChange={(e) => set('name', e.target.value)} placeholder="Grade 3B" />
         </label>
         <label className="t-field">Grade
-          <select value={f.grade} onChange={(e) => set('grade', e.target.value)}>
+          <select value={f.grade} onChange={(e) => setGrade(e.target.value)}>
             {grades.map((g) => <option key={g}>{g}</option>)}
           </select>
         </label>
@@ -40,7 +41,7 @@ function ClassForm({ initial, submitLabel, onSave, onCancel }) {
       </div>
 
       <fieldset className="t-fieldset">
-        <legend>Subjects you teach this class</legend>
+        <legend>Subjects you teach this class (CAPS subjects for {f.grade || 'the grade'})</legend>
         <div className="t-toggles">
           {subjects.map((s) => (
             <button key={s} type="button" className={`t-toggle ${f.subjects.includes(s) ? 'on' : ''}`}

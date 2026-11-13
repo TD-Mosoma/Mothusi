@@ -1,14 +1,30 @@
-export const GRADES = ['Grade R', ...Array.from({ length: 12 }, (_, i) => `Grade ${i + 1}`)]
+// Mothusi currently serves Grades 1–4 (CAPS). Keep in step with backend/models/curriculum.py.
+export const GRADES = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4']
 
-export const SUBJECTS = [
-  'Mathematics', 'Mathematical Literacy', 'English', 'Afrikaans', 'Setswana', 'isiZulu', 'isiXhosa',
-  'Natural Sciences', 'Life Sciences', 'Physical Sciences', 'Social Sciences', 'Geography',
-  'History', 'Technology', 'Life Skills', 'Creative Arts', 'Economic and Management Sciences',
+const FOUNDATION = ['Mathematics', 'Home Language', 'First Additional Language', 'Life Skills']
+
+export const SUBJECTS_BY_GRADE = {
+  'Grade 1': FOUNDATION,
+  'Grade 2': FOUNDATION,
+  'Grade 3': FOUNDATION,
+  'Grade 4': ['Mathematics', 'Home Language', 'First Additional Language', 'Natural Sciences and Technology', 'Social Sciences', 'Life Skills'],
+}
+
+export const SUBJECTS = [...new Set(Object.values(SUBJECTS_BY_GRADE).flat())]
+
+export const subjectsFor = (grade) => SUBJECTS_BY_GRADE[grade] || []
+
+// Selected by the teacher or learner. Never inferred from a name or background.
+export const LANGUAGES = [
+  { code: 'en', label: 'English' },
+  { code: 'tn', label: 'Setswana' },
+  { code: 'zu', label: 'isiZulu' },
+  { code: 'xh', label: 'isiXhosa' },
 ]
+export const LANGUAGE_OPTIONS = LANGUAGES.map((l) => l.label)
+export const languageLabel = (code) => LANGUAGES.find((l) => l.code === code)?.label || code
 
-export const LANGUAGE_OPTIONS = ['English', 'Setswana', 'isiZulu', 'isiXhosa']
-
-export const MATERIAL_TYPES = ['Curriculum document', 'Lesson notes', 'Worksheet', 'Assessment', 'Other']
+export const MATERIAL_TYPES = ['CAPS document', 'Lesson notes', 'Worksheet', 'Assessment', 'Other']
 
 export const unique = (arr) => [...new Set(arr.filter(Boolean))]
 export const byGrade = (a, b) => GRADES.indexOf(a) - GRADES.indexOf(b)

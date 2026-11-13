@@ -1,4 +1,6 @@
+// Learner-side progress, saved items and preferences. These stay on the learner's device.
 const COMPLETED_KEY = 'mothusi.learnerCompleted'
+const RECENT_KEY = 'mothusi.learnerRecentPractice'
 const SAVED_KEY = 'mothusi.learnerSaved'
 const PREFERENCES_KEY = 'mothusi.learnerPreferences'
 const REFLECTION_KEY = 'mothusi.learnerReflection'
@@ -22,25 +24,19 @@ function write(key, value) {
 }
 
 export const getCompletedActivities = () => read(COMPLETED_KEY, 0)
+export const getRecentPractice = () => read(RECENT_KEY, null)
 export const getSavedLearning = () => read(SAVED_KEY, [])
-export const getLearningPreferences = () => read(PREFERENCES_KEY, {
+export const getLearningPreferences = () => ({
   styles: ['pictures', 'shortSteps'],
   textSize: 'normal',
-  alsoLanguage: 'none',
+  ...read(PREFERENCES_KEY, {}),
 })
 
-export function completeLearnerActivity() {
+export function completeLearnerActivity(lesson) {
+  write(RECENT_KEY, { runId: lesson.run_id, title: lesson.topic, at: new Date().toISOString() })
   return write(COMPLETED_KEY, getCompletedActivities() + 1)
 }
 
-export function saveLearningItems(items) {
-  return write(SAVED_KEY, items)
-}
-
-export function saveLearningPreferences(preferences) {
-  return write(PREFERENCES_KEY, preferences)
-}
-
-export function saveLearnerReflection(reflection) {
-  return write(REFLECTION_KEY, reflection)
-}
+export const saveLearningItems = (items) => write(SAVED_KEY, items)
+export const saveLearningPreferences = (preferences) => write(PREFERENCES_KEY, preferences)
+export const saveLearnerReflection = (reflection) => write(REFLECTION_KEY, reflection)

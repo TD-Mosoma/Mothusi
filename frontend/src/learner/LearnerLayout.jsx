@@ -4,6 +4,7 @@ import LanguagePicker from '../components/LanguagePicker.jsx'
 import logo from '../assets/logo.jpeg'
 import './learner.css'
 import { getLearnerProfile, saveLearnerProfile } from '../services/profile.js'
+import { getLearningPreferences } from '../services/learnerPortal.js'
 
 const NAV_ITEMS = [
   { to: '/learner', label: 'Home', icon: '⌂', end: true },
@@ -19,16 +20,23 @@ const isMobile = () => window.matchMedia('(max-width: 860px)').matches
 export default function LearnerLayout() {
   const location = useLocation()
   const [menuOpen, setMenuOpen] = useState(() => !isMobile())
-  const [lang, setLang] = useState(getLearnerProfile()?.language || 'en')
-  const profile = getLearnerProfile()
+  const [profile, setProfile] = useState(getLearnerProfile)
+  const [lang, setLangState] = useState(profile?.language || 'en')
+  const [largeText, setLargeText] = useState(() => getLearningPreferences().textSize === 'large')
   const firstName = profile?.fullName?.trim().split(' ')[0]
-  const changeLanguage = async (language) => {
-    await saveLearnerProfile({ ...profile, language })
-    setLang(language)
+
+  // Language is the learner's own choice; remember it with their profile.
+  const setLang = async (language) => {
+    const next = { ...(profile || {}), language }
+    await saveLearnerProfile(next)
+    setProfile(next)
+    setLangState(language)
   }
 
   useEffect(() => {
     if (isMobile()) setMenuOpen(false)
+    setProfile(getLearnerProfile())
+    setLargeText(getLearningPreferences().textSize === 'large')
   }, [location.pathname])
 
   useEffect(() => {
@@ -40,7 +48,7 @@ export default function LearnerLayout() {
   }, [])
 
   return (
-    <div className="theme-learner learner-shell">
+    <div className={`theme-learner learner-shell${largeText ? ' l-larger-text' : ''}`}>
       <header className="l-topbar">
         <button
           type="button"
@@ -53,11 +61,11 @@ export default function LearnerLayout() {
           <span /><span /><span />
         </button>
         <Link to="/learner" className="l-logo" aria-label="Mothusi learner portal">
-          <img src={logo} alt="Mothusi — your intelligent classroom colleague" />
+          <img src={logo} alt="Mothusi: your intelligent classroom colleague" />
         </Link>
         <div className="l-topbar-right">
           <span className="l-top-greeting">{firstName ? `Hi, ${firstName}!` : 'Your learning space'}</span>
-          <LanguagePicker value={lang} onChange={changeLanguage} />
+          <LanguagePicker value={lang} onChange={setLang} />
         </div>
       </header>
       <div className="l-body">
@@ -83,7 +91,7 @@ export default function LearnerLayout() {
         </aside>
         {menuOpen && <div className="l-backdrop" onClick={() => setMenuOpen(false)} aria-hidden="true" />}
         <main className="l-main">
-          <Outlet context={{ lang, setLang }} />
+          <Outlet context={{ lang, setLang, profile }} />
         </main>
       </div>
     </div>

@@ -17,8 +17,8 @@ export default function Home() {
           <div className="hero-inner">
             <h1>Teachers should not have to do everything alone.</h1>
             <p className="hero-sub">
-              Mothusi is an intelligent classroom colleague. It helps teachers support every learner,
-              without adding more admin work.
+              Mothusi is an intelligent classroom colleague for Grade 1 to 4 teachers. It helps you support every
+              learner, without adding more admin work.
             </p>
             <div className="hero-actions">
               <a href="#choose" className="btn">Get started</a>
@@ -46,7 +46,7 @@ export default function Home() {
               </div>
               <div className="about-item">
                 <h3>Learning in your language</h3>
-                <p>Learners choose the language they like to learn in, and lessons follow their interests.</p>
+                <p>Learners choose the language they like to learn in, and extra explanations use things they love.</p>
               </div>
             </div>
             <p className="about-note">
