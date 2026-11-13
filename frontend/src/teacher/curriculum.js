@@ -20,6 +20,13 @@ export const LANGUAGES = [
   { code: 'tn', label: 'Setswana' },
   { code: 'zu', label: 'isiZulu' },
   { code: 'xh', label: 'isiXhosa' },
+  { code: 'af', label: 'Afrikaans' },
+  { code: 'st', label: 'Sesotho' },
+  { code: 've', label: 'Tshivenda (Venda)' },
+  { code: 'nso', label: 'Sepedi' },
+  { code: 'nr', label: 'isiNdebele' },
+  { code: 'ss', label: 'siSwati' },
+  { code: 'ts', label: 'itsonga' },
 ]
 export const LANGUAGE_OPTIONS = LANGUAGES.map((l) => l.label)
 export const languageLabel = (code) => LANGUAGES.find((l) => l.code === code)?.label || code

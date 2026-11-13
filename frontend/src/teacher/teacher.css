@@ -45,7 +45,7 @@
 .t-nav a { font-family: var(--font-display); font-size: 0.95rem; text-decoration: none; padding: 10px 14px; border-radius: var(--r-md); color: var(--ink-soft); }
 .t-nav a:hover { background: var(--surface-tint); }
 .t-nav a.active { background: var(--surface-tint); color: var(--brand-strong); font-weight: 500; }
-.t-logout { font-family: var(--font-display); font-size: 0.95rem; font-weight: 500; padding: 10px 14px; color: #fff; background: #B42318; text-align: center; text-decoration: none; border-radius: var(--r-md); }
+.t-logout { display: block; width: 100%; border: 0; cursor: pointer; font-family: var(--font-display); font-size: 0.95rem; font-weight: 500; padding: 10px 14px; color: #fff; background: #B42318; text-align: center; text-decoration: none; border-radius: var(--r-md); }
 .t-logout:hover { background: #8E1B12; }
 
 .t-backdrop { display: none; }

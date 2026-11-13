@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { getTeacherProfile, saveTeacherProfile } from '../services/profile.js'
+import { useAuth } from '../services/AuthContext.jsx'
 import { GRADES, SUBJECTS } from './curriculum.js'
 
 const TeacherContext = createContext(null)
@@ -43,7 +44,10 @@ const nextCode = (learners) => {
 }
 
 export function TeacherProvider({ children }) {
-  const [stored] = useState(() => read(STORE_KEY))
+  const { user } = useAuth()
+  const accountStoreKey = `${STORE_KEY}.${user.id}`
+  const accountPrefsKey = `${PREFS_KEY}.${user.id}`
+  const [stored] = useState(() => read(accountStoreKey))
   const [classes, setClasses] = useState(stored?.classes || seedClasses)
   const [learners, setLearners] = useState(stored?.learners || seedLearners)
   const [lessons, setLessons] = useState(stored?.lessons || [])
@@ -61,18 +65,26 @@ export function TeacherProvider({ children }) {
     photoUrl: '',
     ...(getTeacherProfile() || {}),
   }))
+  const [profileSaveError, setProfileSaveError] = useState('')
 
-  const [prefs, setPrefs] = useState(() => ({ menuDefault: 'open', largeText: false, ...(read(PREFS_KEY) || {}) }))
+  const [prefs, setPrefs] = useState(() => ({ menuDefault: 'open', largeText: false, ...(read(accountPrefsKey) || {}) }))
 
-  useEffect(() => { write(STORE_KEY, { classes, learners, lessons }) }, [classes, learners, lessons])
-  useEffect(() => { write(PREFS_KEY, prefs) }, [prefs])
+  useEffect(() => { write(accountStoreKey, { classes, learners, lessons }) }, [accountStoreKey, classes, learners, lessons])
+  useEffect(() => { write(accountPrefsKey, prefs) }, [accountPrefsKey, prefs])
 
   // ---------- Profile and preferences ----------
-  const updateProfile = (patch) => {
+  const updateProfile = async (patch) => {
+    const previous = profile
     const next = { ...profile, ...patch }
     setProfile(next)
     const { photoUrl, ...persistable } = next // photos stay in memory for now
-    saveTeacherProfile(persistable)
+    try {
+      await saveTeacherProfile(persistable)
+      setProfileSaveError('')
+    } catch (error) {
+      setProfile(previous)
+      setProfileSaveError(error.message)
+    }
   }
   const updatePrefs = (patch) => setPrefs((p) => ({ ...p, ...patch }))
 
@@ -125,7 +137,7 @@ export function TeacherProvider({ children }) {
   }
 
   const value = {
-    profile, updateProfile, prefs, updatePrefs,
+    profile, updateProfile, profileSaveError, prefs, updatePrefs,
     classes, addClass, updateClass,
     learners, addLearner, updateLearner, removeLearner,
     lessons, addLesson, updateLesson, newLessonId,

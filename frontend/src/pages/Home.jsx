@@ -22,7 +22,7 @@ export default function Home() {
             </p>
             <div className="hero-actions">
               <a href="#choose" className="btn">Get started</a>
-              <a href="#journey" className="btn secondary">See how it works</a>
+              <Link to="/login" className="btn secondary">Log in</Link>
             </div>
           </div>
         </section>

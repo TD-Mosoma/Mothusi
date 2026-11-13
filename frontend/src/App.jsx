@@ -27,44 +27,49 @@ import Resources from './teacher/Resources.jsx'
 import MyProfile from './teacher/MyProfile.jsx'
 import Settings from './teacher/Settings.jsx'
 import AgentActivity from './teacher/AgentActivity.jsx'
+import { AuthProvider } from './services/AuthContext.jsx'
+import { GuestOnly, LoginPage, RequireRole } from './services/AuthRoutes.jsx'
 
 export default function App() {
   return (
-    <Routes>
-      <Route path="/" element={<Home />} />
+    <AuthProvider>
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<GuestOnly><LoginPage /></GuestOnly>} />
 
-      <Route path="/learner/onboarding" element={<LearnerOnboarding />} />
-      <Route path="/teacher/onboarding" element={<TeacherOnboarding />} />
+        <Route path="/learner/onboarding" element={<GuestOnly><LearnerOnboarding /></GuestOnly>} />
+        <Route path="/teacher/onboarding" element={<GuestOnly><TeacherOnboarding /></GuestOnly>} />
 
-      <Route path="/learner" element={<LearnerLayout />}>
-        <Route index element={<LearnerHome />} />
-        <Route path="lesson" element={<LearnerLesson />} />
-        <Route path="lessons" element={<LearnerLessons />} />
-        <Route path="topic" element={<LearnerTopic />} />
-        <Route path="practice" element={<LearnerPractice />} />
-        <Route path="progress" element={<LearnerProgress />} />
-        <Route path="saved" element={<LearnerSaved />} />
-        <Route path="preferences" element={<LearnerPreferences />} />
-        <Route path="profile" element={<LearnerProfile />} />
-      </Route>
+        <Route path="/learner" element={<RequireRole role="learner"><LearnerLayout /></RequireRole>}>
+          <Route index element={<LearnerHome />} />
+          <Route path="lesson" element={<LearnerLesson />} />
+          <Route path="lessons" element={<LearnerLessons />} />
+          <Route path="topic" element={<LearnerTopic />} />
+          <Route path="practice" element={<LearnerPractice />} />
+          <Route path="progress" element={<LearnerProgress />} />
+          <Route path="saved" element={<LearnerSaved />} />
+          <Route path="preferences" element={<LearnerPreferences />} />
+          <Route path="profile" element={<LearnerProfile />} />
+        </Route>
 
-      <Route path="/teacher" element={<TeacherLayout />}>
-        <Route index element={<TeacherDashboard />} />
-        <Route path="classes" element={<MyClasses />} />
-        <Route path="profiles" element={<LearnerProfiles />} />
-        <Route path="plan" element={<LessonPlanner />} />
-        <Route path="lessons" element={<LessonsReviews />} />
-        <Route path="lessons/:id" element={<LessonReview />} />
-        <Route path="lessons/:id/edit" element={<LessonEdit />} />
-        <Route path="lessons/:id/feedback" element={<LessonFeedback />} />
-        <Route path="activity" element={<AgentActivity />} />
-        <Route path="activity/:runId" element={<AgentActivity />} />
-        <Route path="resources" element={<Resources />} />
-        <Route path="profile" element={<MyProfile />} />
-        <Route path="settings" element={<Settings />} />
-      </Route>
+        <Route path="/teacher" element={<RequireRole role="teacher"><TeacherLayout /></RequireRole>}>
+          <Route index element={<TeacherDashboard />} />
+          <Route path="classes" element={<MyClasses />} />
+          <Route path="profiles" element={<LearnerProfiles />} />
+          <Route path="plan" element={<LessonPlanner />} />
+          <Route path="lessons" element={<LessonsReviews />} />
+          <Route path="lessons/:id" element={<LessonReview />} />
+          <Route path="lessons/:id/edit" element={<LessonEdit />} />
+          <Route path="lessons/:id/feedback" element={<LessonFeedback />} />
+          <Route path="activity" element={<AgentActivity />} />
+          <Route path="activity/:runId" element={<AgentActivity />} />
+          <Route path="resources" element={<Resources />} />
+          <Route path="profile" element={<MyProfile />} />
+          <Route path="settings" element={<Settings />} />
+        </Route>
 
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </AuthProvider>
   )
 }

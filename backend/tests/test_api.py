@@ -5,11 +5,39 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.routes import create_app
+from models.curriculum import LANGUAGES
+from models.schemas import LearnerProfile
 from tests.conftest import DEMO
 
 
 @pytest.fixture
 def client(settings):
+    client = TestClient(create_app(settings))
+    response = client.post("/api/auth/register/teacher", json={
+        "email": "teacher@example.org",
+        "password": "teacher-pass-123",
+        "profile": {"fullName": "Test Teacher"},
+    })
+    assert response.status_code == 201
+    client.headers["Authorization"] = f"Bearer {response.json()['access_token']}"
+    return client
+
+
+@pytest.fixture
+def learner_client(settings):
+    client = TestClient(create_app(settings))
+    response = client.post("/api/auth/register/learner", json={
+        "email": "learner@example.org",
+        "password": "learner-pass-123",
+        "profile": {"fullName": "Test Learner", "code": "L-003"},
+    })
+    assert response.status_code == 201
+    client.headers["Authorization"] = f"Bearer {response.json()['access_token']}"
+    return client
+
+
+@pytest.fixture
+def unauthenticated_client(settings):
     return TestClient(create_app(settings))
 
 
@@ -27,12 +55,62 @@ def test_health_reports_model(client):
     assert body == {"status": "ok", "model": "Offline demo model", "live": False, "can_translate": False}
 
 
+def test_registration_login_and_role_access(client, learner_client):
+    assert client.get("/api/auth/me").json()["user"]["role"] == "teacher"
+    assert "password" not in client.get("/api/auth/me").json()["user"]["profile"]
+    assert learner_client.get("/api/auth/me").json()["user"]["role"] == "learner"
+    assert client.get("/api/learner/lessons").status_code == 403
+    assert learner_client.get("/api/runs").status_code == 403
+    assert client.post("/api/auth/register/learner", json={
+        "email": "learner@example.org", "password": "learner-pass-123", "profile": {"fullName": "Again"},
+    }).status_code == 409
+    login = client.post("/api/auth/login", json={"email": "teacher@example.org", "password": "teacher-pass-123"})
+    assert login.status_code == 200 and login.json()["user"]["role"] == "teacher"
+    assert client.post("/api/auth/login", json={"email": "teacher@example.org", "password": "wrong-pass"}).status_code == 401
+    assert client.post("/api/auth/logout").status_code == 200
+    assert client.get("/api/auth/me").status_code == 401
+
+
+def test_account_and_session_persist_across_app_restart(client, settings):
+    reopened = TestClient(create_app(settings))
+    response = reopened.get("/api/auth/me", headers={
+        "Authorization": client.headers["Authorization"],
+    })
+    assert response.status_code == 200
+    assert response.json()["user"]["role"] == "teacher"
+
+
+def test_profile_email_change_updates_login_identity(client):
+    response = client.patch("/api/auth/profile", json={
+        "fullName": "Updated Teacher", "email": "new-teacher@example.org",
+    })
+    assert response.status_code == 200
+    assert response.json()["user"]["email"] == "new-teacher@example.org"
+    assert client.post("/api/auth/login", json={
+        "email": "new-teacher@example.org", "password": "teacher-pass-123",
+    }).status_code == 200
+
+
+def test_protected_routes_require_login(unauthenticated_client):
+    assert unauthenticated_client.get("/api/health").status_code == 200
+    assert unauthenticated_client.get("/api/runs").status_code == 401
+    assert unauthenticated_client.get("/api/learner/lessons").status_code == 401
+
+
 def test_rejects_out_of_scope_grade(client):
     res = client.post("/api/runs", json={**DEMO, "grade": "Grade 9"})
     assert res.status_code == 422
 
 
-def test_full_flow_plan_stream_approve_learner(client):
+def test_curriculum_and_learner_profiles_include_supported_languages(client):
+    expected = {"en", "tn", "zu", "xh", "af", "st", "ve", "nso", "nr", "ss", "ts"}
+    assert set(client.get("/api/curriculum").json()["languages"]) == expected
+    assert set(LANGUAGES) == expected
+    for language in expected:
+        assert LearnerProfile(id="learner", name="Learner", language=language).language == language
+
+
+def test_full_flow_plan_stream_approve_learner(client, learner_client):
     run_id = client.post("/api/runs", json=DEMO).json()["run_id"]
     run = wait(client, run_id)
     assert run["status"] == "completed_with_warnings"
@@ -49,14 +127,16 @@ def test_full_flow_plan_stream_approve_learner(client):
         resumed = [l for l in "".join(stream.iter_text()).splitlines() if l.startswith("data: {\"")]
     assert len(resumed) == 1
 
-    assert client.get("/api/learner/lesson").json() == {"lesson": None}
+    assert learner_client.get("/api/learner/lesson").json() == {"lesson": None}
     assert client.post(f"/api/runs/{run_id}/approve").json() == {"approved": True}
-    lesson = client.get("/api/learner/lesson", params={"code": "L-003", "language": "tn"}).json()["lesson"]
+    lesson = learner_client.get("/api/learner/lesson", params={"code": "L-003", "language": "tn"}).json()["lesson"]
     assert lesson["personalised"] and lesson["note"] == "language_unavailable"
     assert lesson["material"]["practice"]
 
-    explain_id = client.post("/api/learner/explain", json={"run_id": run_id, "learner_code": "L-001",
-                                                            "style": "visual"}).json()["run_id"]
+    explain_response = learner_client.post("/api/learner/explain", json={
+        "run_id": run_id, "learner_code": "L-001", "style": "visual",
+    })
+    explain_id = explain_response.json()["run_id"]
     explained = wait(client, explain_id)
     assert explained["status"] == "completed"
     assert "Draw a picture" in " ".join(explained["result"]["material"]["explanation"])
@@ -96,18 +176,18 @@ def test_replan_needs_a_change(client):
     assert client.post("/api/runs/nope/replan", json={"teacher_note": "shorter"}).status_code == 404
 
 
-def test_learner_lesson_list_and_specific_lesson(client):
+def test_learner_lesson_list_and_specific_lesson(client, learner_client):
     first = client.post("/api/runs", json=DEMO).json()["run_id"]
     wait(client, first)
     second = client.post("/api/runs", json={**DEMO, "topic": "Sharing equally"}).json()["run_id"]
     wait(client, second)
-    assert client.get("/api/learner/lessons").json() == {"lessons": []}
+    assert learner_client.get("/api/learner/lessons").json() == {"lessons": []}
     client.post(f"/api/runs/{first}/approve")
     client.post(f"/api/runs/{second}/approve")
-    lessons = client.get("/api/learner/lessons").json()["lessons"]
+    lessons = learner_client.get("/api/learner/lessons").json()["lessons"]
     assert [l["topic"] for l in lessons] == ["Sharing equally", "Fractions"]
-    lesson = client.get("/api/learner/lesson", params={"run_id": first, "code": "L-001"}).json()["lesson"]
+    lesson = learner_client.get("/api/learner/lesson", params={"run_id": first, "code": "L-001"}).json()["lesson"]
     assert lesson["topic"] == "Fractions" and lesson["objective"] and lesson["personalised"]
     unapproved = client.post("/api/runs", json=DEMO).json()["run_id"]
     wait(client, unapproved)
-    assert client.get("/api/learner/lesson", params={"run_id": unapproved}).json() == {"lesson": None}
+    assert learner_client.get("/api/learner/lesson", params={"run_id": unapproved}).json() == {"lesson": None}

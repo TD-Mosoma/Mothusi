@@ -1,9 +1,5 @@
 // Learner-side progress, saved items and preferences. These stay on the learner's device.
-const COMPLETED_KEY = 'mothusi.learnerCompleted'
-const RECENT_KEY = 'mothusi.learnerRecentPractice'
-const SAVED_KEY = 'mothusi.learnerSaved'
-const PREFERENCES_KEY = 'mothusi.learnerPreferences'
-const REFLECTION_KEY = 'mothusi.learnerReflection'
+const ACCOUNT_KEY = 'mothusi.learnerProfile'
 
 function read(key, fallback) {
   try {
@@ -12,6 +8,11 @@ function read(key, fallback) {
   } catch {
     return fallback
   }
+}
+
+const accountKey = (key) => {
+  const email = read(ACCOUNT_KEY, null)?.email || 'guest'
+  return `${key}.${encodeURIComponent(email.toLowerCase())}`
 }
 
 function write(key, value) {
@@ -23,20 +24,20 @@ function write(key, value) {
   }
 }
 
-export const getCompletedActivities = () => read(COMPLETED_KEY, 0)
-export const getRecentPractice = () => read(RECENT_KEY, null)
-export const getSavedLearning = () => read(SAVED_KEY, [])
+export const getCompletedActivities = () => read(accountKey('mothusi.learnerCompleted'), 0)
+export const getRecentPractice = () => read(accountKey('mothusi.learnerRecentPractice'), null)
+export const getSavedLearning = () => read(accountKey('mothusi.learnerSaved'), [])
 export const getLearningPreferences = () => ({
   styles: ['pictures', 'shortSteps'],
   textSize: 'normal',
-  ...read(PREFERENCES_KEY, {}),
+  ...read(accountKey('mothusi.learnerPreferences'), {}),
 })
 
 export function completeLearnerActivity(lesson) {
-  write(RECENT_KEY, { runId: lesson.run_id, title: lesson.topic, at: new Date().toISOString() })
-  return write(COMPLETED_KEY, getCompletedActivities() + 1)
+  write(accountKey('mothusi.learnerRecentPractice'), { runId: lesson.run_id, title: lesson.topic, at: new Date().toISOString() })
+  return write(accountKey('mothusi.learnerCompleted'), getCompletedActivities() + 1)
 }
 
-export const saveLearningItems = (items) => write(SAVED_KEY, items)
-export const saveLearningPreferences = (preferences) => write(PREFERENCES_KEY, preferences)
-export const saveLearnerReflection = (reflection) => write(REFLECTION_KEY, reflection)
+export const saveLearningItems = (items) => write(accountKey('mothusi.learnerSaved'), items)
+export const saveLearningPreferences = (preferences) => write(accountKey('mothusi.learnerPreferences'), preferences)
+export const saveLearnerReflection = (reflection) => write(accountKey('mothusi.learnerReflection'), reflection)

@@ -12,7 +12,10 @@ export default function Header() {
         <nav className="site-nav" aria-label="Main navigation">
           <a href="#about">What is Mothusi?</a>
           <a href="#journey">How it works</a>
-          <a href="#choose" className="site-nav-cta">Get started</a>
+          <span className="site-nav-actions">
+            <a href="#choose" className="site-nav-cta">Get started</a>
+            <Link to="/login" className="site-nav-login">Log in</Link>
+          </span>
         </nav>
       </div>
     </header>

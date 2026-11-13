@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 from models.curriculum import GRADES, LANGUAGES, SUBJECTS_BY_GRADE
 
-LanguageCode = Literal["en", "tn", "zu", "xh"]
+LanguageCode = Literal["en", "tn", "zu", "xh", "af", "st", "ve", "nso", "nr", "ss", "ts"]
 WHOLE_CLASS = "whole_class"
 
 

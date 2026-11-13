@@ -65,6 +65,11 @@
 .ob-actions { display: flex; justify-content: space-between; gap: var(--s-3); }
 .ob-done { text-align: center; padding: var(--s-5) 0; }
 .ob-done p { margin-left: auto; margin-right: auto; }
+.ob-account-fields { display: grid; gap: var(--s-4); }
+.ob-account-fields label { display: grid; gap: var(--s-2); color: var(--ink); font: 500 0.95rem var(--font-display); }
+.ob-account-fields .ob-input { font-size: 1.05rem; text-align: left; }
+.ob-error { color: #8E1B12; }
+.ob-login-link { margin: var(--s-4) auto 0; }
 
 @media (max-width: 480px) {
   .ob-card { padding: var(--s-5) var(--s-4); }

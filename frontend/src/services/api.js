@@ -1,7 +1,13 @@
 ﻿// All calls to the Mothusi backend. In development Vite proxies /api to the FastAPI server.
 const BASE = import.meta.env.VITE_API_URL || ''
+const TOKEN_KEY = 'mothusi.authToken'
 
-export class ApiError extends Error {}
+export class ApiError extends Error {
+  constructor(message, status = 0) {
+    super(message)
+    this.status = status
+  }
+}
 
 const messageFrom = (data) => {
   const d = data?.detail
@@ -10,21 +16,38 @@ const messageFrom = (data) => {
   return null
 }
 
-async function request(path, { method = 'GET', body } = {}) {
+async function request(path, { method = 'GET', body, headers = {} } = {}) {
   let res
   try {
+    const token = sessionStorage.getItem(TOKEN_KEY)
     res = await fetch(BASE + path, {
       method,
-      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      headers: {
+        ...(body ? { 'Content-Type': 'application/json' } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...headers,
+      },
       body: body ? JSON.stringify(body) : undefined,
     })
   } catch {
     throw new ApiError('Mothusi cannot reach its server. Check that the backend is running.')
   }
   const data = await res.json().catch(() => null)
-  if (!res.ok) throw new ApiError(messageFrom(data) || `Request failed (${res.status}).`)
+  if (!res.ok) throw new ApiError(messageFrom(data) || `Request failed (${res.status}).`, res.status)
   return data
 }
+
+export const getAuthToken = () => sessionStorage.getItem(TOKEN_KEY)
+export const setAuthToken = (token) => sessionStorage.setItem(TOKEN_KEY, token)
+export const clearAuthToken = () => sessionStorage.removeItem(TOKEN_KEY)
+
+export const registerLearner = (body) => request('/api/auth/register/learner', { method: 'POST', body })
+export const registerTeacher = (body) => request('/api/auth/register/teacher', { method: 'POST', body })
+export const login = (body) => request('/api/auth/login', { method: 'POST', body })
+export const getCurrentUser = () => request('/api/auth/me').then((r) => r.user)
+export const logout = () => request('/api/auth/logout', { method: 'POST' })
+export const updateAccountProfile = (profile) =>
+  request('/api/auth/profile', { method: 'PATCH', body: profile }).then((r) => r.user)
 
 // ---------------------------------------------------------------- runs
 
@@ -60,15 +83,69 @@ export const askForExplanation = ({ runId, code, language, style, interests = []
 
 // ---------------------------------------------------------------- live events
 
-// Streams a run's events. EventSource reconnects on its own and resumes from the last event it saw.
+// Fetch is used instead of EventSource so the authenticated session can be sent in a header.
 export function streamRun(runId, { onEvent, onEnd, onError }) {
-  const source = new EventSource(`${BASE}/api/runs/${runId}/events`)
-  source.onmessage = (msg) => onEvent?.(JSON.parse(msg.data))
-  source.addEventListener('end', () => { source.close(); onEnd?.() })
-  source.onerror = () => {
-    if (source.readyState === EventSource.CLOSED) onError?.(new ApiError('Lost the live connection to Mothusi.'))
+  let closed = false
+  let controller
+  let lastEventId = 0
+  const connect = async () => {
+    while (!closed) {
+      try {
+        controller = new AbortController()
+        const token = getAuthToken()
+        const res = await fetch(`${BASE}/api/runs/${runId}/events`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            ...(lastEventId ? { 'Last-Event-ID': String(lastEventId) } : {}),
+          },
+          signal: controller.signal,
+        })
+        if (!res.ok) {
+          const data = await res.json().catch(() => null)
+          throw new ApiError(messageFrom(data) || `Request failed (${res.status}).`, res.status)
+        }
+
+        const reader = res.body.getReader()
+        const decoder = new TextDecoder()
+        let buffer = ''
+        while (!closed) {
+          const { value, done } = await reader.read()
+          buffer += decoder.decode(value || new Uint8Array(), { stream: !done })
+          const frames = buffer.split(/\r?\n\r?\n/)
+          buffer = frames.pop() || ''
+          for (const frame of frames) {
+            let eventName = 'message'
+            let data = ''
+            for (const line of frame.split(/\r?\n/)) {
+              if (line.startsWith('id:')) lastEventId = Number(line.slice(3).trim()) || lastEventId
+              else if (line.startsWith('event:')) eventName = line.slice(6).trim()
+              else if (line.startsWith('data:')) data += `${line.slice(5).trimStart()}\n`
+            }
+            if (eventName === 'end') {
+              closed = true
+              await reader.cancel()
+              onEnd?.()
+              return
+            }
+            if (data) onEvent?.(JSON.parse(data))
+          }
+          if (done) break
+        }
+      } catch (error) {
+        if (closed || error.name === 'AbortError') return
+        if (error.status) {
+          onError?.(error)
+          return
+        }
+      }
+      if (!closed) await new Promise((resolve) => setTimeout(resolve, 500))
+    }
   }
-  return () => source.close()
+  connect()
+  return () => {
+    closed = true
+    controller?.abort()
+  }
 }
 
 // Resolves with the finished run; onEvent receives every event as it happens.

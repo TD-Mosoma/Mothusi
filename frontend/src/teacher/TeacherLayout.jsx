@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Outlet, NavLink, Link, useLocation } from 'react-router-dom'
+import { Outlet, NavLink, Link, useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../services/AuthContext.jsx'
 import { TeacherProvider, useTeacher } from './TeacherContext.jsx'
 import { initialsOf } from './format.js'
 import logo from '../assets/logo.jpeg'
@@ -28,8 +29,10 @@ export default function TeacherLayout() {
 }
 
 function Shell() {
-  const { profile, prefs } = useTeacher()
+  const { profile, profileSaveError, prefs } = useTeacher()
+  const { signOut } = useAuth()
   const location = useLocation()
+  const navigate = useNavigate()
   const [open, setOpen] = useState(() => !isMobile() && prefs.menuDefault !== 'closed')
 
   // On phones the menu covers the page, so close it after choosing a page.
@@ -72,12 +75,19 @@ function Shell() {
               <NavLink key={n.to} to={n.to} end={n.end}>{n.label}</NavLink>
             ))}
           </nav>
-          <Link to="/" className="t-logout">Log out</Link>
+          <button type="button" className="t-logout" onClick={async () => {
+            try { await signOut() } catch (error) {
+              navigate('/login', { replace: true, state: { message: error.message } })
+            }
+          }}>Log out</button>
         </aside>
 
         {open && <div className="t-backdrop" onClick={() => setOpen(false)} aria-hidden="true" />}
 
-        <main className="t-main"><Outlet /></main>
+        <main className="t-main">
+          {profileSaveError && <p role="alert">{profileSaveError}</p>}
+          <Outlet />
+        </main>
       </div>
     </div>
   )

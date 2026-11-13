@@ -5,6 +5,7 @@ import { languageLabel } from '../teacher/curriculum.js'
 import { askForExplanation, runToCompletion } from '../services/api.js'
 import { completeLearnerActivity } from '../services/learnerPortal.js'
 import { useLearnerLesson } from './useLearnerLesson.js'
+import { translate, translateMaterial } from './translations.js'
 
 const STEPS = ['Learn', 'Try it', 'Practice']
 const STYLES = [
@@ -26,10 +27,15 @@ export default function LearnerLesson() {
   const autoStarted = useRef(false)
   const [step, setStep] = useState(0)
   const [material, setMaterial] = useState(null)
+  const [localTranslation, setLocalTranslation] = useState(false)
   const [helping, setHelping] = useState(null) // current kid-friendly status while agents work
   const [helpError, setHelpError] = useState('')
 
-  useEffect(() => { setMaterial(lesson?.material || null) }, [lesson])
+  useEffect(() => {
+    setMaterial(lesson?.material || null)
+    setLocalTranslation(lesson?.note === 'local_translation')
+  }, [lesson])
+  const localizedMaterial = translateMaterial(material, lang)
 
   const explainAgain = async (style) => {
     setHelpError('')
@@ -40,7 +46,9 @@ export default function LearnerLesson() {
       })
       const run = await runToCompletion(runId, (e) => { if (KID_STEP[e.agent]) setHelping(KID_STEP[e.agent]) })
       if (run.status === 'failed') throw new Error(run.error)
-      setMaterial(run.result.material)
+      const translatedMaterial = translateMaterial(run.result.material, lang)
+      setMaterial(translatedMaterial)
+      setLocalTranslation(JSON.stringify(translatedMaterial) !== JSON.stringify(run.result.material))
       setStep(0)
     } catch {
       setHelpError('Mothusi could not find another way right now. Ask your teacher or a buddy.')
@@ -57,16 +65,16 @@ export default function LearnerLesson() {
     }
   }, [lesson, requestedStyle])
 
-  if (loading) return <p className="l-note">Getting your lesson ready…</p>
-  if (error) return <p className="l-note" role="alert">We cannot load your lesson right now. Please ask your teacher.</p>
-  if (lesson && !material) return <p className="l-note">Getting your lesson ready…</p>
+  if (loading) return <p className="l-note">{translate(lang, 'Getting your lesson ready…')}</p>
+  if (error) return <p className="l-note" role="alert">{translate(lang, 'We cannot load your lesson right now. Please ask your teacher.')}</p>
+  if (lesson && !material) return <p className="l-note">{translate(lang, 'Getting your lesson ready…')}</p>
   if (!lesson) {
     return (
       <div className="l-empty">
         <span aria-hidden="true">▤</span>
-        <h2>No lesson yet</h2>
-        <p>Your teacher has not shared a lesson yet. Check again soon!</p>
-        <Link className="btn" to="/learner">Back to home</Link>
+        <h2>{translate(lang, 'No lessons yet')}</h2>
+        <p>{translate(lang, 'Your teacher has not shared a lesson yet. Check again soon!')}</p>
+        <Link className="btn" to="/learner">{translate(lang, 'Back to home')}</Link>
       </div>
     )
   }
@@ -77,22 +85,30 @@ export default function LearnerLesson() {
     <div className="stack l-page">
       <header className="l-page-heading">
         <span className="l-eyebrow">{lesson.subject.toUpperCase()} • {lesson.grade.toUpperCase()}</span>
-        <h1>{material.title}</h1>
+        <h1>{localizedMaterial.title}</h1>
       </header>
 
-      {lesson.note === 'language_unavailable' && lang !== 'en' && (
+      {lesson.note === 'language_unavailable' && lang !== 'en' && !localTranslation && (
         <p className="l-note" role="status">
-          This lesson is not ready in {languageLabel(lang)} yet. We are showing it in English while a person checks the translation.
+          {translate(lang, 'This lesson is not ready in {language} yet. We are showing it in English while a person checks the translation.', { language: languageLabel(lang) })}
         </p>
       )}
       {lesson.note === 'translated_ai_draft' && (
-        <p className="l-note" role="status">This lesson was translated into {languageLabel(lang)} by Mothusi and checked by its reviewer.</p>
+        <p className="l-note" role="status">
+          {translate(lang, 'This lesson’s {language} translation was checked by a reviewer.', { language: languageLabel(lang) })}
+          {' '}{translate(lang, 'The lesson title and objective were written by your teacher and stay in their original language.')}
+        </p>
+      )}
+      {localTranslation && (
+        <p className="l-note" role="status">
+          {translate(lang, 'This lesson has some locally translated built-in text. Any text without a local translation, including teacher-written titles and objectives, stays in its original language.')}
+        </p>
       )}
 
-      <ol className="l-steps" aria-label="Lesson steps">
+      <ol className="l-steps" aria-label={translate(lang, 'Lesson steps')}>
         {STEPS.map((s, i) => (
           <li key={s} className={i === step ? 'current' : i < step ? 'done' : ''}>
-            <button onClick={() => setStep(i)} aria-current={i === step ? 'step' : undefined}>{s}</button>
+            <button onClick={() => setStep(i)} aria-current={i === step ? 'step' : undefined}>{translate(lang, s)}</button>
           </li>
         ))}
       </ol>
@@ -100,23 +116,23 @@ export default function LearnerLesson() {
       {step === 0 && (
         <section className="card l-learn">
           <div className="stack">
-            <div>{material.explanation.map((line, i) => <p key={i}>{line}</p>)}</div>
-            <p className="l-example">{material.everyday_example}</p>
+            <div>{localizedMaterial.explanation.map((line, i) => <p key={i}>{translate(lang, line)}</p>)}</div>
+            <p className="l-example">{translate(lang, localizedMaterial.everyday_example)}</p>
             {helping ? (
-              <p className="l-note" role="status" aria-live="polite">{helping}</p>
+              <p className="l-note" role="status" aria-live="polite">{translate(lang, helping)}</p>
             ) : (
               <div className="stack">
-                <p className="muted">Want another way?</p>
+                <p className="muted">{translate(lang, 'Want another way?')}</p>
                 <div className="row">
                   {STYLES.map((s) => (
-                    <button key={s.key} className="btn secondary" onClick={() => explainAgain(s.key)}>{s.label}</button>
+                    <button key={s.key} className="btn secondary" onClick={() => explainAgain(s.key)}>{translate(lang, s.label)}</button>
                   ))}
                 </div>
               </div>
             )}
             {helpError && <p className="l-note" role="alert">{helpError}</p>}
             <div className="row">
-              <button className="btn" onClick={() => setStep(1)} disabled={!!helping}>Next</button>
+              <button className="btn" onClick={() => setStep(1)} disabled={!!helping}>{translate(lang, 'Next')}</button>
             </div>
           </div>
           {visual && (
@@ -130,21 +146,21 @@ export default function LearnerLesson() {
 
       {step === 1 && (
         <section className="card stack">
-          <h2>Try it with real things</h2>
-          <p>{material.activity}</p>
+          <h2>{translate(lang, 'Try it with real things')}</h2>
+          <p>{translate(lang, localizedMaterial.activity)}</p>
           <div className="row">
-            <button className="btn secondary" onClick={() => setStep(0)}>Back</button>
-            <button className="btn" onClick={() => setStep(2)}>I tried it</button>
+            <button className="btn secondary" onClick={() => setStep(0)}>{translate(lang, 'Back')}</button>
+            <button className="btn" onClick={() => setStep(2)}>{translate(lang, 'I tried it')}</button>
           </div>
         </section>
       )}
 
-      {step === 2 && <Practice key={material.title} questions={material.practice} onDone={() => completeLearnerActivity(lesson)} />}
+      {step === 2 && <Practice key={localizedMaterial.title} questions={localizedMaterial.practice} lang={lang} onDone={() => completeLearnerActivity(lesson)} />}
     </div>
   )
 }
 
-function Practice({ questions, onDone }) {
+function Practice({ questions, lang, onDone }) {
   const [qi, setQi] = useState(0)
   const [picked, setPicked] = useState(null)
   const q = questions[qi]
@@ -158,29 +174,29 @@ function Practice({ questions, onDone }) {
 
   return (
     <section className="card stack">
-      <h2>Question {qi + 1} of {questions.length}</h2>
-      <p className="l-question">{q.prompt}</p>
-      <div className="l-options" role="group" aria-label="Answer choices">
+      <h2>{translate(lang, 'Question {number} of {total}', { number: qi + 1, total: questions.length })}</h2>
+      <p className="l-question">{translate(lang, q.prompt)}</p>
+      <div className="l-options" role="group" aria-label={translate(lang, 'Answer choices')}>
         {q.options.map((o, i) => (
           <button
             key={i}
             className={`l-option ${picked === i ? (i === q.answer_index ? 'right' : 'try') : ''}`}
             onClick={() => setPicked(i)}
-            aria-label={o.fraction ? `${o.fraction.shaded} of ${o.fraction.parts} parts shaded` : o.text}
+            aria-label={o.fraction ? translate(lang, '{count} of {parts} parts shaded', { count: o.fraction.shaded, parts: o.fraction.parts }) : translate(lang, o.text)}
           >
-            {o.fraction ? <FractionCircle parts={o.fraction.parts} shaded={o.fraction.shaded} size={110} /> : <span className="l-option-text">{o.text}</span>}
+            {o.fraction ? <FractionCircle parts={o.fraction.parts} shaded={o.fraction.shaded} size={110} /> : <span className="l-option-text">{translate(lang, o.text)}</span>}
           </button>
         ))}
       </div>
 
       {picked !== null && (
         <div className={`l-feedback ${correct ? 'right' : 'try'}`} role="status">
-          {correct ? 'Well done! You found it.' : `Good try. ${q.hint || 'Look again and try another answer.'}`}
+          {correct ? translate(lang, 'Well done! You found it.') : translate(lang, q.hint ? 'Good try. {hint}' : 'Good try.', { hint: translate(lang, q.hint) || translate(lang, 'Look again and try another answer.') })}
         </div>
       )}
 
-      {picked !== null && correct && !last && <button className="btn" onClick={next}>Next question</button>}
-      {picked !== null && correct && last && <p className="l-done">You finished today's practice. Great work!</p>}
+      {picked !== null && correct && !last && <button className="btn" onClick={next}>{translate(lang, 'Next question')}</button>}
+      {picked !== null && correct && last && <p className="l-done">{translate(lang, 'You finished today’s practice. Great work!')}</p>}
     </section>
   )
 }

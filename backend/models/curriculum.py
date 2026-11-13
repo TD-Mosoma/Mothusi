@@ -19,4 +19,16 @@ AGE_RANGE = {"Grade 1": "6–7", "Grade 2": "7–8", "Grade 3": "8–9", "Grade 
 # Longest comfortable sentence for a young reader at each grade, in words.
 MAX_SENTENCE_WORDS = {"Grade 1": 10, "Grade 2": 12, "Grade 3": 14, "Grade 4": 16}
 
-LANGUAGES = {"en": "English", "tn": "Setswana", "zu": "isiZulu", "xh": "isiXhosa"}
+LANGUAGES = {
+    "en": "English",
+    "tn": "Setswana",
+    "zu": "isiZulu",
+    "xh": "isiXhosa",
+    "af": "Afrikaans",
+    "st": "Sesotho",
+    "ve": "Tshivenda (Venda)",
+    "nso": "Sepedi",
+    "nr": "isiNdebele",
+    "ss": "siSwati",
+    "ts": "itsonga",
+}

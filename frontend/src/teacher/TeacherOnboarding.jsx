@@ -1,17 +1,19 @@
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { saveTeacherProfile } from '../services/profile.js'
+import { useAuth } from '../services/AuthContext.jsx'
 import './onboarding.css'
 
 import { GRADES, SUBJECTS } from './curriculum.js'
 
 export default function TeacherOnboarding() {
   const navigate = useNavigate()
+  const { createTeacherAccount } = useAuth()
   const [form, setForm] = useState({
     fullName: '', email: '', password: '', grades: [], subjects: [],
   })
   const [errors, setErrors] = useState({})
   const [saving, setSaving] = useState(false)
+  const [registerError, setRegisterError] = useState('')
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }))
   const toggle = (key, value) =>
@@ -35,14 +37,22 @@ export default function TeacherOnboarding() {
     ev.preventDefault()
     if (!validate()) return
     setSaving(true)
-    await saveTeacherProfile(form)
-    navigate('/teacher')
+    setRegisterError('')
+    try {
+      await createTeacherAccount(form)
+      navigate('/teacher')
+    } catch (error) {
+      setRegisterError(error.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
     <div className="theme-teacher tob-shell">
       <form className="tob-card" onSubmit={submit} noValidate>
         <Link to="/" className="tob-logo">Mothusi</Link>
+        <p className="muted">Already registered? <Link to="/login">Log in</Link></p>
         <h1>Set up your teacher account</h1>
         <p className="muted">Mothusi supports teachers of Grades 1 to 4. Your grades and subjects shape the lessons it helps you plan.</p>
 
@@ -81,6 +91,7 @@ export default function TeacherOnboarding() {
         <button type="submit" className="btn" disabled={saving}>
           {saving ? 'Creating account...' : 'Create account'}
         </button>
+        {registerError && <p className="tob-error" role="alert">{registerError}</p>}
       </form>
     </div>
   )

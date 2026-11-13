@@ -80,6 +80,14 @@ npm install
 npm run dev                   # http://localhost:5173, proxies /api to port 8000
 ```
 
+### Accounts and access
+
+Learners create an account during onboarding with an email address and a password of at least 8 characters. Teacher
+accounts are created through the teacher setup flow with an email and password. Both sign-up flows log the user in
+when the account is created. Returning users use **Log in**; their account role opens the matching portal and skips
+onboarding. Accounts and password hashes are stored in the backend SQLite database, and teacher and learner API
+routes require an authenticated session with the matching role.
+
 Terminal demo of the full workflow: `cd backend && uv run python -m scripts.demo` (add `--offline` for the offline
 model).
 

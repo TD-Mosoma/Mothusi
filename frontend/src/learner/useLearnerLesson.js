@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getLearnerLesson, listLearnerLessons } from '../services/api.js'
+import { translateMaterial } from './translations.js'
 
 // A lesson the teacher approved: a specific one when runId is given, otherwise the most recent.
 // Personalised when the learner's code matches a profile in that lesson.
@@ -10,7 +11,17 @@ export function useLearnerLesson(code, lang, runId) {
     let alive = true
     setState((s) => ({ ...s, loading: true, error: '' }))
     getLearnerLesson({ code, language: lang, runId })
-      .then((lesson) => alive && setState({ loading: false, lesson, error: '' }))
+      .then((lesson) => {
+        if (!alive) return
+        let nextLesson = lesson
+        if (lesson && lesson.note === 'language_unavailable' && lang !== 'en') {
+          const material = translateMaterial(lesson.material, lang)
+          if (JSON.stringify(material) !== JSON.stringify(lesson.material)) {
+            nextLesson = { ...lesson, material, note: 'local_translation' }
+          }
+        }
+        setState({ loading: false, lesson: nextLesson, error: '' })
+      })
       .catch((e) => alive && setState({ loading: false, lesson: null, error: e.message }))
     return () => { alive = false }
   }, [code, lang, runId])
