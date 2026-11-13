@@ -28,6 +28,8 @@ from tools.safety_tools import find_labels, redact_labels
 from tools.validation_tools import check_material, rebalance_flow
 
 ORCHESTRATOR = "Orchestrator"
+# On a serverless host, translation (a slow, large model) only starts with at least this long left in the run.
+TRANSLATION_MIN_SECONDS = 60
 
 
 @dataclass
@@ -346,6 +348,12 @@ class Orchestrator:
         learners = [l for l in learners if materials.get(l.id)]
         if not learners:
             return {}
+        if trace.remaining() < TRANSLATION_MIN_SECONDS:
+            trace.emit(ORCHESTRATOR, "warning", "Translation skipped: not enough time left on this server",
+                       "The lesson is ready in English. Learners see English with a note; prepare the lesson again to "
+                       "try the translation, or a fluent speaker can provide their language.")
+            return {l.id: {"language": l.language, "status": "unavailable", "material": None, "issues": [],
+                           "back_translation": ""} for l in learners}
         if not llm.can_translate:
             trace.emit(ORCHESTRATOR, "warning", "Translation skipped in offline demo mode",
                        "The offline model cannot translate. Learners will see English with a note until a live run "

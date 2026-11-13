@@ -31,7 +31,7 @@ class LLMClient(Protocol):
     can_translate: bool
 
     def complete(self, messages: list[dict[str, str]], *, task: str, context: dict[str, Any],
-                 on_retry: RetryHook | None = None) -> Completion: ...
+                 on_retry: RetryHook | None = None, deadline: float | None = None) -> Completion: ...
 
 
 _THINK = re.compile(r"<think>(.*?)</think>", re.DOTALL | re.IGNORECASE)
@@ -64,10 +64,17 @@ class NvidiaClient:
             max_retries=0,
         )
 
-    def complete(self, messages, *, task, context, on_retry=None) -> Completion:
+    def complete(self, messages, *, task, context, on_retry=None, deadline=None) -> Completion:
         attempt = 0
         while True:
             started = time.monotonic()
+            # On a serverless host the whole run has a deadline: never start a call that cannot finish before it.
+            timeout = self._client.timeout
+            if deadline is not None:
+                left = deadline - started
+                if left < MIN_CALL_SECONDS:
+                    raise LLMError("There was not enough time left on this server for another model call.")
+                timeout = min(float(self._client.timeout), left)
             model = self.language_model if task in LANGUAGE_TASKS else self.model
             extra = None
             if model == self.model:
@@ -79,12 +86,15 @@ class NvidiaClient:
                     temperature=self.temperature,
                     max_tokens=8000,
                     extra_body=extra,
+                    timeout=timeout,
                 )
             except (openai.APITimeoutError, openai.APIConnectionError, openai.RateLimitError,
                     openai.InternalServerError) as exc:
                 if attempt >= len(self.RETRY_DELAYS):
                     raise LLMError(f"The language model is not responding ({type(exc).__name__}).") from exc
                 delay = self.RETRY_DELAYS[attempt]
+                if deadline is not None and deadline - time.monotonic() < delay + MIN_CALL_SECONDS:
+                    raise LLMError("The language model is not responding, and there is no time left to retry.") from exc
                 attempt += 1
                 if on_retry:
                     on_retry(attempt, f"{type(exc).__name__}; retrying in {delay:.0f}s")
@@ -108,6 +118,9 @@ class NvidiaClient:
             tokens = resp.usage.total_tokens if resp.usage else None
             return Completion(text=content.strip(), reasoning=reasoning.strip(), duration_ms=duration, tokens=tokens,
                               truncated=resp.choices[0].finish_reason == "length", model=model)
+
+
+MIN_CALL_SECONDS = 15  # a model call needs at least this long to be worth starting
 
 
 def extract_json(text: str) -> Any:

@@ -63,7 +63,7 @@ class MockClient:
         self.delay = delay_seconds
         self._rng = random.Random(seed)
 
-    def complete(self, messages, *, task, context, on_retry=None) -> Completion:
+    def complete(self, messages, *, task, context, on_retry=None, deadline=None) -> Completion:
         if self.delay:
             time.sleep(self.delay * self._rng.uniform(0.6, 1.4))
         handler = getattr(self, f"_{task}", None)

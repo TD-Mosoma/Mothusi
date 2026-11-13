@@ -50,8 +50,13 @@ class RunTrace:
         self.done = False
         self.node: str | None = None  # LangGraph node currently running, for the live graph view
         self._t0 = time.monotonic()
+        self.deadline: float | None = None  # time.monotonic() by which the run must end (serverless hosts)
         self._lock = threading.Lock()
         self._on_event = on_event
+
+    def remaining(self) -> float:
+        """Seconds left before the deadline; unlimited when the run has none."""
+        return float("inf") if self.deadline is None else self.deadline - time.monotonic()
 
     def emit(
         self,

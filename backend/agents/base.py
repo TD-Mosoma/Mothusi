@@ -59,7 +59,8 @@ class Agent:
             trace.emit(self.name, "llm_retry", f"Model call failed, retrying ({n})", why)
 
         for attempt in range(max_repairs + 1):
-            completion = llm.complete(messages, task=self.task, context={**context, "repair": attempt}, on_retry=on_retry)
+            completion = llm.complete(messages, task=self.task, context={**context, "repair": attempt}, on_retry=on_retry,
+                                      deadline=trace.deadline)
             total_ms += completion.duration_ms
             try:
                 parsed = schema.model_validate(extract_json(completion.text))

@@ -83,7 +83,7 @@ class ScriptedLLM(MockClient):
         self.scripts = {k: list(v) for k, v in scripts.items()}
         self.calls: list[str] = []
 
-    def complete(self, messages, *, task, context, on_retry=None):
+    def complete(self, messages, *, task, context, on_retry=None, deadline=None):
         self.calls.append(task)
         queue = self.scripts.get(task)
         if queue:

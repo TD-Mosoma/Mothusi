@@ -87,3 +87,26 @@ def test_upload_limit_follows_the_host(settings):
     res = t.post("/api/teacher/resources", json={"title": "Big", "grade": "Grade 4", "subject": "Mathematics",
                                                  "type": "Worksheet", "filename": "big.txt", "content_base64": big})
     assert res.status_code == 413 and "0.001 MB" in res.json()["detail"]
+
+
+def test_a_run_near_its_deadline_skips_translation_instead_of_failing(orchestrator):
+    import time
+    from llm.mock import MockClient
+    from models.schemas import LessonRequest
+    from orchestration.events import RunTrace
+    trace = RunTrace("deadline-test")
+    trace.deadline = time.monotonic() + 30  # less than the time a translation needs
+    result = orchestrator.plan_lesson(trace, MockClient(delay_seconds=0), LessonRequest.model_validate(BASE_DEMO))
+    assert result["pack"]["topic"] == "Fractions"
+    assert any(e.title.startswith("Translation skipped: not enough time") for e in trace.events)
+
+
+def test_model_calls_never_start_after_the_deadline(settings):
+    import time
+    import pytest
+    from llm.client import LLMError, NvidiaClient
+    client = NvidiaClient(dataclasses.replace(settings, provider="nvidia", api_key="test-key",
+                                              base_url="http://127.0.0.1:9", model="m", language_model="m"))
+    with pytest.raises(LLMError, match="not enough time"):
+        client.complete([{"role": "user", "content": "hi"}], task="lesson_analyst", context={},
+                        deadline=time.monotonic() + 5)

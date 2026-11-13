@@ -1,4 +1,5 @@
 import logging
+import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from typing import Callable
@@ -57,6 +58,8 @@ class RunManager:
         run = self.store.get_run(run_id)
         spec = run.get("job") or {}
         trace = RunTrace(run_id, on_event=self.store.add_event)
+        # Leave time to save the lesson and report back before the function's own limit.
+        trace.deadline = time.monotonic() + max(30, self.settings.run_deadline_seconds - 20)
         self.traces[run_id] = trace
         try:
             if self.job_builder is None:
