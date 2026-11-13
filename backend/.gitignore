@@ -21,3 +21,5 @@ uv.lock
 # Local Mothusi data (runs, events, feedback)
 data/
 *.db
+.vercel
+.env*

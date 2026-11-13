@@ -4,3 +4,5 @@ data
 tests
 .pytest_cache
 **/__pycache__
+.env*
+.python-version
