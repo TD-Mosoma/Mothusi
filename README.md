@@ -145,12 +145,20 @@ Before the first deploy, stop tracking the installed packages and build output (
      database password: `postgresql://postgres.<ref>:<password>@aws-1-eu-west-2.pooler.supabase.com:6543/postgres?sslmode=require`
    - `MOTHUSI_CORS_ORIGINS`: the website's address, for example `https://mothusi.vercel.app`
    - `MOTHUSI_PUBLIC_URL`: the same address (used in password-reset emails)
-   - optional: `MOTHUSI_LLM_TIMEOUT=90` so a slow model call cannot use up the 5 minutes; the `MOTHUSI_SMTP_*`
-     settings for reset emails
+   - `MOTHUSI_LLM_TIMEOUT=180` and `MOTHUSI_REASONING_TASKS=lesson_analyst,reviewer` (the Adaptation Designer
+     answers without its long thinking step, so a lesson fits in 5 minutes more often)
+   - optional: the `MOTHUSI_SMTP_*` settings for reset emails
 2. **Frontend project.** Import the same repository again → Root Directory `frontend`. Environment variable:
    `VITE_API_URL` = the backend's address, for example `https://mothusi-api.vercel.app` (no trailing slash).
 3. Deploy both. If you set the website address after the backend's first deploy, redeploy the backend so it picks up
    `MOTHUSI_CORS_ORIGINS`.
+
+**Time limit.** Every run knows its deadline: model calls never start when they cannot finish, and translation is
+skipped (with a note for the teacher) when too little time is left, so a lesson is saved rather than cut off. A live
+lesson usually takes 1½ to 5 minutes, depending on the model's speed and how many corrections the Reviewer asks for, so
+on the Hobby plan some lessons will stop at the limit. For dependable live runs, use Vercel Pro (functions up to
+13 minutes: set `maxDuration` to 800 in `backend/vercel.json` and `MOTHUSI_RUN_DEADLINE=780`), or host the backend on
+a long-lived server, where it runs lessons in the background with no time limit.
 
 The API functions run in London (`lhr1`), next to the Supabase database. Schema changes go in `supabase/migrations/`
 and are applied with `supabase db push`; the backend also adds any missing tables and columns when it starts.

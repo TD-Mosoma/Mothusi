@@ -38,6 +38,10 @@ _THINK = re.compile(r"<think>(.*?)</think>", re.DOTALL | re.IGNORECASE)
 
 
 LANGUAGE_TASKS = {"translator", "translation_checker"}
+# Tasks that normally answer within seconds. If one has not answered in this long, the request has most likely
+# stalled at the provider, and a fresh attempt is faster than waiting for the full timeout.
+QUICK_TASKS = {"planner", "router", "needs_matcher", "personalisation"}
+QUICK_TIMEOUT_SECONDS = 45
 
 
 class NvidiaClient:
@@ -69,12 +73,14 @@ class NvidiaClient:
         while True:
             started = time.monotonic()
             # On a serverless host the whole run has a deadline: never start a call that cannot finish before it.
-            timeout = self._client.timeout
+            timeout = float(self._client.timeout)
+            if task in QUICK_TASKS:
+                timeout = min(timeout, QUICK_TIMEOUT_SECONDS)
             if deadline is not None:
                 left = deadline - started
                 if left < MIN_CALL_SECONDS:
                     raise LLMError("There was not enough time left on this server for another model call.")
-                timeout = min(float(self._client.timeout), left)
+                timeout = min(timeout, left)
             model = self.language_model if task in LANGUAGE_TASKS else self.model
             extra = None
             if model == self.model:
