@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useTeacher } from './TeacherContext.jsx'
 import { unique, byGrade } from './curriculum.js'
 import { tomorrowISO } from './format.js'
-import { generateLessonDraft, WORKFLOW_STAGES } from '../services/api.js'
+import { generateLessonDraft, getBackendHealth, WORKFLOW_STAGES } from '../services/api.js'
 
 const stageText = (stage, s) => {
   if (s.status === 'running') return `In progress • ${stage.desc}`
@@ -39,6 +39,21 @@ export default function LessonPlanner() {
   const [steps, setSteps] = useState([])
   const [error, setError] = useState('')
   const [finished, setFinished] = useState(null) // lesson id when the draft is ready
+  const [backendStatus, setBackendStatus] = useState('Checking backend...')
+
+  useEffect(() => {
+    getBackendHealth()
+      .then(({ generator }) => {
+        const status = {
+          demo: 'Connected to backend · local demo mode',
+          ready: 'Connected to backend · AI generation ready',
+          unconfigured: 'Connected to backend · NVIDIA_API_KEY not configured',
+          dependencies_missing: 'Connected to backend · CrewAI dependencies missing',
+        }[generator]
+        setBackendStatus(status || 'Connected to backend')
+      })
+      .catch(() => setBackendStatus('Backend unavailable · start the backend to generate lessons'))
+  }, [])
 
   const set = (key, value) => setForm((f) => ({ ...f, [key]: value }))
   const cls = activeClasses.find((c) => c.id === form.classId)
@@ -90,9 +105,9 @@ export default function LessonPlanner() {
         ...draft,
       })
       setFinished(id)
-    } catch {
+    } catch (generationError) {
       setSteps((s) => s.map((x) => (x.status === 'running' || x.status === 'retry' ? { ...x, status: 'failed', detail: 'This stage did not finish.' } : x)))
-      setError('Mothusi could not finish preparing the lesson. Nothing was saved. Try again, or go back and change your details.')
+      setError(`${generationError.message} Nothing was saved. Try again after addressing the issue.`)
     }
   }
 
@@ -159,6 +174,7 @@ export default function LessonPlanner() {
         <div>
           <h1>Create a lesson plan</h1>
           <p className="muted">Tell Mothusi what you are teaching and the conditions it must plan around.</p>
+          <p className="muted small-text" role="status">{backendStatus}</p>
         </div>
       </div>
 

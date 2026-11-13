@@ -1,36 +1,54 @@
-// One place for backend calls. Everything here is simulated for now.
-// Replace each function with a fetch() to the FastAPI endpoints once the contract is agreed.
- 
-const delay = (ms) => new Promise((r) => setTimeout(r, ms))
- 
+const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
 export const MAX_RETRIES = 3
- 
-// Agent workflow stages shown in the teacher portal.
+
 export const WORKFLOW_STAGES = [
-  { key: 'analysis', label: 'Lesson analysis', desc: 'identifying objectives and lesson demands', done: () => 'objectives and lesson demands identified' },
-  { key: 'matching', label: 'Learner needs matching', desc: 'matching support profiles to lesson demands', done: (c) => `${c.learners} profiles matched to lesson demands` },
-  { key: 'design', label: 'Adaptation design', desc: 'generating practical strategies', done: () => 'practical strategies generated' },
-  { key: 'personalise', label: 'Personalised resources', desc: 'alternative explanations and activities', done: () => 'alternative explanations and activities prepared' },
-  { key: 'review', label: 'Quality review', desc: 'feasibility and learning-goal checks', done: () => 'feasibility and learning-goal checks passed' },
-  { key: 'pack', label: 'Teacher pack', desc: 'preparing editable lesson plan', done: () => 'editable lesson plan ready for your review' },
+  { key: 'analysis', label: 'Lesson analysis', desc: 'identifying objectives and lesson demands' },
+  { key: 'matching', label: 'Learner needs matching', desc: 'matching support profiles to lesson demands' },
+  { key: 'design', label: 'Adaptation design', desc: 'generating practical strategies' },
+  { key: 'personalise', label: 'Personalised resources', desc: 'preparing recommendations for learners' },
+  { key: 'review', label: 'Quality review', desc: 'checking feasibility and learning-goal alignment' },
+  { key: 'pack', label: 'Teacher pack', desc: 'preparing the teacher-support pack' },
 ]
- 
-// Builds the draft the teacher will review. Replace with the Pack Builder agent's output.
-function buildDraft(input, classLearners) {
-  const m = Number(input.lessonMinutes) || 45
-  const intro = Math.max(2, Math.round(m * 0.12))
-  const modelling = Math.round(m * 0.22)
-  const guided = Math.round(m * 0.34)
-  const exit = Math.max(2, m - intro - modelling - guided)
- 
-  const ad = (id, learner, text) => ({ id, learner, text, original: text, edited: false, removed: false })
-  const adaptations = classLearners.map((l, i) =>
-    ad(`a${i + 1}`, l.name, l.support ? `Support ${l.name}: ${l.support}` : `Break instructions into short steps for ${l.name}`)
-  )
-  if (input.noPrinter) adaptations.push(ad('a-print', 'Whole class', 'Draw examples on the board instead of using printed worksheets'))
-  if (input.noisyHall) adaptations.push(ad('a-noise', 'Whole class', 'Use hand signals and written cues instead of long spoken instructions'))
-  if (adaptations.length === 0) adaptations.push(ad('a1', 'Whole class', 'Break instructions into short steps'))
- 
+
+async function request(path, options) {
+  const response = await fetch(path, options)
+  const contentType = response.headers.get('content-type') || ''
+  const body = contentType.includes('application/json')
+    ? await response.json()
+    : { detail: await response.text() }
+  if (!response.ok) {
+    throw new Error(body.detail || `The Mothusi backend returned an error (${response.status}).`)
+  }
+  return body
+}
+
+export async function getBackendHealth() {
+  return request('/api/health')
+}
+
+function buildDraft(input, classLearners, result) {
+  const minutes = Number(input.lessonMinutes) || 45
+  const intro = Math.max(2, Math.round(minutes * 0.12))
+  const modelling = Math.round(minutes * 0.22)
+  const guided = Math.round(minutes * 0.34)
+  const exit = Math.max(2, minutes - intro - modelling - guided)
+  const adaptations = result.adaptations.adaptations.map((item, index) => {
+    const materials = item.materials_needed?.length
+      ? ` Materials: ${item.materials_needed.join(', ')}.`
+      : ''
+    const recommendation = `${item.recommendation}${materials}`
+    return {
+      id: `a${index + 1}`,
+      learner: item.learner,
+      text: recommendation,
+      original: recommendation,
+      edited: false,
+      removed: false,
+      timeRequiredMinutes: item.time_required_minutes,
+    }
+  })
+
   return {
     flow: [
       { label: 'Introduction', min: intro },
@@ -41,39 +59,69 @@ function buildDraft(input, classLearners) {
     adaptations,
     feasibility: [
       input.noPrinter ? 'No printer respected' : 'Printing available',
-      `${m}-minute lesson`,
+      `${minutes}-minute lesson`,
       `${input.supportMinutes}-minute individual support limit`,
+      `${classLearners.length} learner support profile${classLearners.length === 1 ? '' : 's'} provided`,
     ],
-    checks: ['Learning objective retained', 'Constraints checked', 'Recommendations linked to profiles'],
+    checks: [
+      result.review_passed
+        ? `Quality review passed in ${result.attempts} attempt${result.attempts === 1 ? '' : 's'}`
+        : `Quality review needs teacher attention after ${result.attempts} attempts`,
+      'Recommendations generated by the connected backend',
+    ],
+    pack: result.pack,
+    generationMode: result.mode,
+    attempts: result.attempts,
+    finalFeedback: result.final_feedback,
   }
 }
- 
-// onStep(index, { status: 'running' | 'retry' | 'done' | 'failed', detail? })
+
 export async function generateLessonDraft(input, classLearners, onStep) {
-  for (let i = 0; i < WORKFLOW_STAGES.length; i++) {
-    const stage = WORKFLOW_STAGES[i]
-    onStep(i, { status: 'running' })
-    await delay(800)
- 
-    // Demo of the Reviewer rejecting an unrealistic activity and the plan being corrected.
-    if (stage.key === 'review' && Number(input.supportMinutes) <= 10) {
-      onStep(i, {
-        status: 'retry',
-        detail: `Check failed: a first activity needed 20 minutes of one-to-one time, but only ${input.supportMinutes} are available. Retrying (1 of ${MAX_RETRIES}) with a shorter activity.`,
-      })
-      await delay(1500)
-    }
-    onStep(i, { status: 'done', detail: stage.done({ learners: classLearners.length }) })
-  }
-  return buildDraft(input, classLearners)
+  onStep(0, { status: 'running' })
+  const result = await request('/api/lessons/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      lesson_plan: [
+        `${input.grade} ${input.subject}: ${input.topic}`,
+        `Learning objectives: ${input.objectives}`,
+        input.notes ? `Lesson content: ${input.notes}` : '',
+      ].filter(Boolean).join('\n\n'),
+      profiles: classLearners.map((learner) => ({
+        name: learner.name,
+        preference: [learner.strengths, learner.support].filter(Boolean).join('; '),
+      })),
+      constraints: {
+        individual_time_minutes: input.supportMinutes,
+        has_printer: !input.noPrinter,
+        noisy_hall: input.noisyHall,
+        class_size: Number(input.learnerCount),
+        lesson_minutes: input.lessonMinutes,
+      },
+    }),
+  })
+
+  onStep(0, { status: 'done', detail: 'Objectives and lesson demands analysed by the backend' })
+  onStep(1, { status: 'done', detail: `${classLearners.length} learner support profiles included` })
+  onStep(2, { status: 'done', detail: `${result.adaptations.adaptations.length} recommendations generated` })
+  onStep(3, { status: 'done', detail: 'Personalised recommendations prepared' })
+  onStep(4, {
+    status: result.review_passed ? 'done' : 'failed',
+    detail: result.review_passed
+      ? `Feasibility and learning-goal checks passed in ${result.attempts} attempt${result.attempts === 1 ? '' : 's'}`
+      : result.final_feedback || `Review did not pass after ${result.attempts} attempts`,
+  })
+  onStep(5, { status: 'done', detail: 'Teacher-support pack prepared by the backend' })
+
+  return buildDraft(input, classLearners, result)
 }
- 
-export async function recheckLesson(/* lesson */) {
-  await delay(900)
+
+export async function recheckLesson() {
+  await delay(300)
   return { ok: true }
 }
- 
-export async function submitFeedback(/* { lessonId, feedback } */) {
+
+export async function submitFeedback() {
   await delay(300)
   return { ok: true }
 }

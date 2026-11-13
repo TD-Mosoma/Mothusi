@@ -26,6 +26,7 @@ def run_mothusi(lesson_plan: str, profiles: list, constraints: dict) -> dict:
     feedback = ""
     final_adaptations = None
     attempts = 0
+    review_passed = False
 
     for attempt in range(MAX_RETRIES):
         attempts = attempt + 1
@@ -59,6 +60,8 @@ def run_mothusi(lesson_plan: str, profiles: list, constraints: dict) -> dict:
             continue
 
         final_adaptations = adaptations
+        feedback = ""
+        review_passed = True
         print(f"\n[Attempt {attempts}] PASSED both checks.\n")
         break
 
@@ -79,6 +82,7 @@ def run_mothusi(lesson_plan: str, profiles: list, constraints: dict) -> dict:
         "adaptations": final_adaptations.model_dump(),
         "attempts": attempts,
         "final_feedback": feedback,
+        "review_passed": review_passed,
     }
 
 
