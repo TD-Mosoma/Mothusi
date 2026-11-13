@@ -15,6 +15,7 @@ export default function LessonEdit() {
   const [adaptId, setAdaptId] = useState(adaptations[0]?.id || '')
   const [changeType, setChangeType] = useState(CHANGE_TYPES[0])
   const [text, setText] = useState(adaptations[0]?.text || '')
+  const [minutes, setMinutes] = useState(adaptations[0]?.teacherMinutes ?? 0)
   const [reason, setReason] = useState('')
   const [error, setError] = useState('')
 
@@ -33,13 +34,15 @@ export default function LessonEdit() {
 
   const pick = (value) => {
     setAdaptId(value)
-    setText(adaptations.find((a) => a.id === value)?.text || '')
+    const next = adaptations.find((a) => a.id === value)
+    setText(next?.text || '')
+    setMinutes(next?.teacherMinutes ?? 0)
   }
 
   const save = (e) => {
     e.preventDefault()
     if (!current) return setError('There is no recommendation left to change.')
-    if (changeType === 'Edit recommendation' && text.trim().length < 3) return setError('Write your revised instruction.')
+    if (changeType === 'Edit recommendation' && text.trim().length < 10) return setError('Write your revised instruction as a short sentence (at least 10 characters).')
 
     updateLesson(lesson.id, (l) => ({
       version: l.version + 1,
@@ -49,7 +52,7 @@ export default function LessonEdit() {
         if (a.id !== current.id) return a
         return changeType === 'Remove recommendation'
           ? { ...a, removed: true }
-          : { ...a, text: text.trim(), edited: true }
+          : { ...a, text: text.trim(), teacherMinutes: Math.max(0, Number(minutes) || 0), edited: true }
       }),
       history: [
         ...l.history,
@@ -67,12 +70,7 @@ export default function LessonEdit() {
 
   const requestRework = () => {
     if (reason.trim().length < 3) return setError('Tell Mothusi what to rework in the box below.')
-    updateLesson(lesson.id, (l) => ({
-      status: 'returned',
-      note: reason.trim(),
-      history: [...l.history, { at: stamp(), by: 'Teacher', note: 'Requested rework', reason: reason.trim() }],
-    }))
-    back()
+    navigate(`/teacher/lessons/${lesson.id}`, { state: { rework: reason.trim() } })
   }
 
   const edits = lesson.history.filter((h) => h.before !== undefined)
@@ -90,7 +88,7 @@ export default function LessonEdit() {
         <div className="t-form-grid">
           <label className="t-field">Section to change
             <select value={adaptId} onChange={(e) => pick(e.target.value)}>
-              {adaptations.map((a) => <option key={a.id} value={a.id}>Adaptations for {a.learner}</option>)}
+              {adaptations.map((a) => <option key={a.id} value={a.id}>{a.learner}: {a.strategy}</option>)}
             </select>
           </label>
           <label className="t-field">Change type
@@ -103,9 +101,14 @@ export default function LessonEdit() {
         {current && <p className="muted"><strong>Mothusi's original suggestion:</strong> {current.original}</p>}
 
         {changeType === 'Edit recommendation' && (
-          <label className="t-field">Your revised instruction
-            <textarea rows="3" value={text} onChange={(e) => setText(e.target.value)} />
-          </label>
+          <>
+            <label className="t-field">Your revised instruction
+              <textarea rows="3" value={text} onChange={(e) => setText(e.target.value)} />
+            </label>
+            <label className="t-field">One-to-one minutes this needs from you
+              <input type="number" min="0" max="60" value={minutes} onChange={(e) => setMinutes(e.target.value)} />
+            </label>
+          </>
         )}
 
         <label className="t-field">Reason or feedback to Mothusi
@@ -118,7 +121,7 @@ export default function LessonEdit() {
           <button type="button" className="btn secondary" onClick={requestRework}>Request rework</button>
           <button type="button" className="btn ghost" onClick={back}>Cancel</button>
         </div>
-        <p className="t-hint">Edited content is re-checked before you give final approval.</p>
+        <p className="t-hint">The Reviewer re-checks your edits before you approve. "Request rework" sends your note to the agents.</p>
       </form>
 
       <section className="card stack">

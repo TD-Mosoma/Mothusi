@@ -31,7 +31,7 @@ export default function TeacherDashboard() {
         </div>
         <div className="row">
           <Link to="/teacher/plan" className="btn">+ Create lesson</Link>
-          <Link to="/teacher/lessons" className="btn secondary">View reviews</Link>
+          <Link to="/teacher/activity" className="btn secondary">Agent activity</Link>
         </div>
       </div>
 
@@ -71,6 +71,7 @@ export default function TeacherDashboard() {
             <li><Link to="/teacher/profiles">Open learner profiles</Link></li>
             <li><Link to="/teacher/classes">View my classes</Link></li>
             <li><Link to="/teacher/lessons">Review agent recommendations</Link></li>
+            <li><Link to="/teacher/activity">Watch the agents at work</Link></li>
           </ul>
         </section>
       </div>

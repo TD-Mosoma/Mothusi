@@ -1,79 +1,184 @@
-// One place for backend calls. Everything here is simulated for now.
-// Replace each function with a fetch() to the FastAPI endpoints once the contract is agreed.
- 
-const delay = (ms) => new Promise((r) => setTimeout(r, ms))
- 
-export const MAX_RETRIES = 3
- 
-// Agent workflow stages shown in the teacher portal.
-export const WORKFLOW_STAGES = [
-  { key: 'analysis', label: 'Lesson analysis', desc: 'identifying objectives and lesson demands', done: () => 'objectives and lesson demands identified' },
-  { key: 'matching', label: 'Learner needs matching', desc: 'matching support profiles to lesson demands', done: (c) => `${c.learners} profiles matched to lesson demands` },
-  { key: 'design', label: 'Adaptation design', desc: 'generating practical strategies', done: () => 'practical strategies generated' },
-  { key: 'personalise', label: 'Personalised resources', desc: 'alternative explanations and activities', done: () => 'alternative explanations and activities prepared' },
-  { key: 'review', label: 'Quality review', desc: 'feasibility and learning-goal checks', done: () => 'feasibility and learning-goal checks passed' },
-  { key: 'pack', label: 'Teacher pack', desc: 'preparing editable lesson plan', done: () => 'editable lesson plan ready for your review' },
-]
- 
-// Builds the draft the teacher will review. Replace with the Pack Builder agent's output.
-function buildDraft(input, classLearners) {
-  const m = Number(input.lessonMinutes) || 45
-  const intro = Math.max(2, Math.round(m * 0.12))
-  const modelling = Math.round(m * 0.22)
-  const guided = Math.round(m * 0.34)
-  const exit = Math.max(2, m - intro - modelling - guided)
- 
-  const ad = (id, learner, text) => ({ id, learner, text, original: text, edited: false, removed: false })
-  const adaptations = classLearners.map((l, i) =>
-    ad(`a${i + 1}`, l.name, l.support ? `Support ${l.name}: ${l.support}` : `Break instructions into short steps for ${l.name}`)
-  )
-  if (input.noPrinter) adaptations.push(ad('a-print', 'Whole class', 'Draw examples on the board instead of using printed worksheets'))
-  if (input.noisyHall) adaptations.push(ad('a-noise', 'Whole class', 'Use hand signals and written cues instead of long spoken instructions'))
-  if (adaptations.length === 0) adaptations.push(ad('a1', 'Whole class', 'Break instructions into short steps'))
- 
+// All calls to the Mothusi backend. In development Vite proxies /api to the FastAPI server.
+const BASE = import.meta.env.VITE_API_URL || ''
+
+export class ApiError extends Error {}
+
+const messageFrom = (data) => {
+  const d = data?.detail
+  if (typeof d === 'string') return d
+  if (Array.isArray(d) && d[0]?.msg) return d[0].msg.replace(/^Value error, /, '')
+  return null
+}
+
+async function request(path, { method = 'GET', body } = {}) {
+  let res
+  try {
+    res = await fetch(BASE + path, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    })
+  } catch {
+    throw new ApiError('Mothusi cannot reach its server. Check that the backend is running.')
+  }
+  const data = await res.json().catch(() => null)
+  if (!res.ok) throw new ApiError(messageFrom(data) || `Request failed (${res.status}).`)
+  return data
+}
+
+// ---------------------------------------------------------------- runs
+
+export const getHealth = () => request('/api/health')
+export const getGraph = () => request('/api/graph')
+export const listRuns = (limit = 50) => request(`/api/runs?limit=${limit}`).then((r) => r.runs)
+export const getRun = (id, { events = false } = {}) => request(`/api/runs/${id}${events ? '?events=true' : ''}`)
+
+export const startPlan = (payload) => request('/api/runs', { method: 'POST', body: payload }).then((r) => r.run_id)
+export const startReplan = (runId, { constraints, teacherNote = '', lessonId }) =>
+  request(`/api/runs/${runId}/replan`, {
+    method: 'POST', body: { constraints: constraints || null, teacher_note: teacherNote, lesson_id: lessonId },
+  }).then((r) => r.run_id)
+export const startRecheck = (runId, adaptations) =>
+  request(`/api/runs/${runId}/recheck`, { method: 'POST', body: { adaptations: adaptations.map(toBackendAdaptation) } })
+    .then((r) => r.run_id)
+export const approveRun = (runId) => request(`/api/runs/${runId}/approve`, { method: 'POST' })
+export const submitFeedback = (payload) => request('/api/feedback', { method: 'POST', body: payload }).then((r) => r.run_id)
+export const getMemory = (learnerIds) =>
+  request(`/api/memory?${learnerIds.map((id) => `learner_id=${encodeURIComponent(id)}`).join('&')}`).then((r) => r.feedback)
+
+// ---------------------------------------------------------------- learner portal
+
+export const getLearnerLesson = ({ code, language, runId }) => {
+  const q = new URLSearchParams({ language: language || 'en', ...(code ? { code } : {}), ...(runId ? { run_id: runId } : {}) })
+  return request(`/api/learner/lesson?${q}`).then((r) => r.lesson)
+}
+export const listLearnerLessons = () => request('/api/learner/lessons').then((r) => r.lessons)
+export const askForExplanation = ({ runId, code, language, style, interests = [] }) =>
+  request('/api/learner/explain', {
+    method: 'POST', body: { run_id: runId, learner_code: code || null, language: language || 'en', style, interests },
+  }).then((r) => r.run_id)
+
+// ---------------------------------------------------------------- live events
+
+// Streams a run's events. EventSource reconnects on its own and resumes from the last event it saw.
+export function streamRun(runId, { onEvent, onEnd, onError }) {
+  const source = new EventSource(`${BASE}/api/runs/${runId}/events`)
+  source.onmessage = (msg) => onEvent?.(JSON.parse(msg.data))
+  source.addEventListener('end', () => { source.close(); onEnd?.() })
+  source.onerror = () => {
+    if (source.readyState === EventSource.CLOSED) onError?.(new ApiError('Lost the live connection to Mothusi.'))
+  }
+  return () => source.close()
+}
+
+// Resolves with the finished run; onEvent receives every event as it happens.
+export function runToCompletion(runId, onEvent) {
+  return new Promise((resolve, reject) => {
+    streamRun(runId, {
+      onEvent,
+      onEnd: () => getRun(runId).then(resolve, reject),
+      onError: reject,
+    })
+  })
+}
+
+// ---------------------------------------------------------------- mapping
+
+export function buildLessonRequest(form, classLearners, { lessonId, offline }) {
   return {
-    flow: [
-      { label: 'Introduction', min: intro },
-      { label: 'Modelling', min: modelling },
-      { label: 'Guided practice', min: guided },
-      { label: 'Exit check', min: exit },
-    ],
-    adaptations,
-    feasibility: [
-      input.noPrinter ? 'No printer respected' : 'Printing available',
-      `${m}-minute lesson`,
-      `${input.supportMinutes}-minute individual support limit`,
-    ],
-    checks: ['Learning objective retained', 'Constraints checked', 'Recommendations linked to profiles'],
+    grade: form.grade,
+    subject: form.subject,
+    topic: form.topic.trim(),
+    objectives: form.objectives.trim(),
+    content: form.notes.trim(),
+    learners: classLearners.map((l) => ({
+      id: l.id, code: l.code, name: l.name, strengths: l.strengths || '', support: l.support || '', language: l.language || 'en',
+    })),
+    constraints: constraintsFromForm(form),
+    lesson_id: lessonId,
+    offline: !!offline,
   }
 }
- 
-// onStep(index, { status: 'running' | 'retry' | 'done' | 'failed', detail? })
-export async function generateLessonDraft(input, classLearners, onStep) {
-  for (let i = 0; i < WORKFLOW_STAGES.length; i++) {
-    const stage = WORKFLOW_STAGES[i]
-    onStep(i, { status: 'running' })
-    await delay(800)
- 
-    // Demo of the Reviewer rejecting an unrealistic activity and the plan being corrected.
-    if (stage.key === 'review' && Number(input.supportMinutes) <= 10) {
-      onStep(i, {
-        status: 'retry',
-        detail: `Check failed: a first activity needed 20 minutes of one-to-one time, but only ${input.supportMinutes} are available. Retrying (1 of ${MAX_RETRIES}) with a shorter activity.`,
-      })
-      await delay(1500)
-    }
-    onStep(i, { status: 'done', detail: stage.done({ learners: classLearners.length }) })
+
+export const constraintsFromForm = (f) => ({
+  class_size: Number(f.learnerCount),
+  lesson_minutes: Number(f.lessonMinutes),
+  support_minutes: Number(f.supportMinutes),
+  prep_minutes: Number(f.prepMinutes ?? 30),
+  has_printer: !f.noPrinter,
+  has_devices: !!f.hasDevices,
+  noisy_venue: !!f.noisyHall,
+  notes: f.conditionNotes || '',
+})
+
+export const formFromConstraints = (c) => ({
+  learnerCount: c.class_size,
+  lessonMinutes: c.lesson_minutes,
+  supportMinutes: c.support_minutes,
+  prepMinutes: c.prep_minutes ?? 30,
+  noPrinter: !c.has_printer,
+  hasDevices: c.has_devices,
+  noisyHall: c.noisy_venue,
+  conditionNotes: c.notes || '',
+})
+
+export function toFrontendAdaptation(a, names) {
+  return {
+    id: a.id,
+    learnerId: a.learner_id,
+    learner: a.learner_id === 'whole_class' ? 'Whole class' : names[a.learner_id] || a.learner_id,
+    strategy: a.strategy,
+    text: a.instruction,
+    original: a.instruction,
+    teacherMinutes: a.teacher_minutes,
+    prepMinutes: a.prep_minutes ?? 0,
+    materials: a.materials || [],
+    phase: a.phase || '',
+    addresses: a.addresses || '',
+    revision: a.revision || 1,
+    edited: false,
+    removed: false,
   }
-  return buildDraft(input, classLearners)
 }
- 
-export async function recheckLesson(/* lesson */) {
-  await delay(900)
-  return { ok: true }
+
+export function toBackendAdaptation(a) {
+  return {
+    id: a.id,
+    learner_id: a.learnerId,
+    phase: a.phase || '',
+    strategy: a.strategy,
+    instruction: a.text,
+    teacher_minutes: Number(a.teacherMinutes) || 0,
+    prep_minutes: Number(a.prepMinutes) || 0,
+    materials: a.materials || [],
+    addresses: a.addresses || '',
+    revision: a.revision || 1,
+  }
 }
- 
-export async function submitFeedback(/* { lessonId, feedback } */) {
-  await delay(300)
-  return { ok: true }
+
+// The parts of a finished plan run that the lesson pages show.
+export function lessonFieldsFromRun(run) {
+  const { pack, state, changes = [], warnings = [] } = run.result
+  const names = Object.fromEntries(pack.learners.map((l) => [l.id, l.name]))
+  return {
+    runId: run.id,
+    model: run.model,
+    status: 'awaiting_review',
+    needsRecheck: false,
+    objectiveSummary: pack.objective,
+    successCriteria: pack.success_criteria,
+    vocabulary: pack.key_vocabulary,
+    demands: pack.demands,
+    flow: pack.flow.map((p) => ({ label: p.label, min: p.minutes, activity: p.activity })),
+    adaptations: state.adaptations.map((a) => toFrontendAdaptation(a, names)),
+    checks: pack.checks,
+    warnings,
+    changes: changes.map((c) => ({ ...c, learner: c.learner_id === 'whole_class' ? 'Whole class' : names[c.learner_id] || c.learner_id })),
+    learnersPack: pack.learners,
+    wholeClass: pack.whole_class,
+    memoryApplied: pack.memory_applied,
+    stats: pack.stats,
+    constraints: pack.constraints,
+    markdown: pack.markdown,
+  }
 }

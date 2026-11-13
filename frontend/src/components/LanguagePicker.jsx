@@ -1,10 +1,4 @@
-// Language is always chosen by the teacher or learner, never inferred.
-export const LANGUAGES = [
-  { code: 'en', label: 'English' },
-  { code: 'tn', label: 'Setswana' },
-  { code: 'zu', label: 'isiZulu' },
-  { code: 'xh', label: 'isiXhosa' },
-]
+import { LANGUAGES } from '../teacher/curriculum.js'
 
 export default function LanguagePicker({ value, onChange }) {
   return (

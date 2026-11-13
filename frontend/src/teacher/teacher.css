@@ -161,3 +161,31 @@
 .t-resource > div:first-child { display: flex; flex-direction: column; gap: 4px; }
 .t-assign { display: flex; justify-content: space-between; align-items: center; gap: var(--s-4); flex-wrap: wrap; padding: var(--s-3) var(--s-4); border: 1px solid var(--line); border-radius: var(--r-md); }
 .t-assign p { margin: 2px 0 0; }
+/* ---------- Agent activity ---------- */
+.t-activity { display: grid; grid-template-columns: 300px 1fr; gap: var(--s-5); align-items: start; }
+@media (max-width: 1000px) { .t-activity { grid-template-columns: 1fr; } }
+.t-run-list ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-2); max-height: 70vh; overflow-y: auto; }
+.t-run { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: var(--s-3); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); color: var(--ink); cursor: pointer; font: inherit; }
+.t-run:hover { border-color: var(--brand); }
+.t-run.on { border-color: var(--brand-strong); box-shadow: 0 0 0 2px var(--brand-soft); }
+.t-run strong { font-family: var(--font-display); font-weight: 500; font-size: 0.95rem; }
+.t-run-summary { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s-4); flex-wrap: wrap; padding: var(--s-4) var(--s-5); }
+.t-run-summary p { margin: 0; }
+
+/* ---------- Lesson review ---------- */
+.t-attention { border-color: #F3CFC5; background: var(--gentle-soft); }
+.t-attention ul { margin: 0; padding-left: 1.2rem; }
+.t-checks li.failed::before { content: '✗'; color: #B42318; }
+.t-before { margin: var(--s-2) 0 0; color: var(--ink-soft); text-decoration: line-through; text-decoration-color: rgba(0,0,0,0.25); }
+.t-after { margin: 4px 0 0; }
+.t-demands { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.t-learner-block { border-top: 1px solid var(--line); padding-top: var(--s-4); }
+.t-learner-block:first-of-type { border-top: 0; padding-top: 0; }
+.t-learner-block h3 { margin: 0; }
+.t-material { border: 1px solid var(--line); border-radius: var(--r-md); padding: var(--s-3) var(--s-4); margin-top: var(--s-3); background: var(--surface-tint); }
+.t-material summary { cursor: pointer; font-family: var(--font-display); font-weight: 500; }
+.t-material-body { margin-top: var(--s-3); }
+.t-practice { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: var(--s-3); }
+.t-practice li { display: flex; flex-direction: column; gap: 4px; }
+.t-option { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface); font-size: 0.9rem; }
+.t-option.answer { border-color: var(--ok); background: var(--ok-soft); }

@@ -137,6 +137,9 @@
 .l-method-card > span { display: grid; width: 38px; height: 38px; place-items: center; margin-bottom: var(--s-2); border-radius: 13px; background: rgba(255,255,255,0.72); font-size: 1.3rem; }
 .l-method-card h2 { margin-bottom: 4px; font-size: 1.06rem; }
 .l-method-card p { margin: 0; color: var(--ink-soft); font-size: 0.9rem; }
+a.l-method-card { display: block; color: var(--ink); text-decoration: none; border: 2px solid transparent; transition: transform 0.12s ease, border-color 0.12s ease; }
+a.l-method-card:hover { transform: translateY(-2px); border-color: var(--brand); }
+.l-mini-icon { color: #378DCF; font-size: 2.2rem; }
 .method-blue { background: #E7F4FF; }
 .method-yellow { background: #FFF4D9; }
 .method-green { background: #E5F6EC; }
@@ -234,4 +237,14 @@
   .l-practice-option svg { width: 76px; height: 76px; }
   .l-profile-card { flex-direction: column; }
   .l-profile-details { width: 100%; grid-template-columns: 1fr; }
+}
+.l-example { background: var(--surface-tint); border-radius: var(--r-md); padding: var(--s-3) var(--s-4); }
+.l-option-text { display: inline-block; min-width: 80px; padding: var(--s-3) var(--s-4); font-family: var(--font-display); font-size: 1.3rem; }
+@media (max-width: 640px) {
+  .l-topbar { gap: var(--s-2); }
+  .l-logo img { width: 72px; height: 64px; }
+  .l-topbar-right { min-width: 0; flex: 1; }
+  .l-topbar-right .lang-picker { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .l-topbar-right .lang-picker::-webkit-scrollbar { display: none; }
+  .l-topbar-right .lang-btn { flex-shrink: 0; padding: 8px 10px; font-size: 0.82rem; }
 }

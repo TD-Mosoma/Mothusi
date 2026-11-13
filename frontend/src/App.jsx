@@ -26,6 +26,7 @@ import LessonFeedback from './teacher/LessonFeedback.jsx'
 import Resources from './teacher/Resources.jsx'
 import MyProfile from './teacher/MyProfile.jsx'
 import Settings from './teacher/Settings.jsx'
+import AgentActivity from './teacher/AgentActivity.jsx'
 
 export default function App() {
   return (
@@ -56,6 +57,8 @@ export default function App() {
         <Route path="lessons/:id" element={<LessonReview />} />
         <Route path="lessons/:id/edit" element={<LessonEdit />} />
         <Route path="lessons/:id/feedback" element={<LessonFeedback />} />
+        <Route path="activity" element={<AgentActivity />} />
+        <Route path="activity/:runId" element={<AgentActivity />} />
         <Route path="resources" element={<Resources />} />
         <Route path="profile" element={<MyProfile />} />
         <Route path="settings" element={<Settings />} />

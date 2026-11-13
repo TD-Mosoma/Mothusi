@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useTeacher } from './TeacherContext.jsx'
+import { LANGUAGES, languageLabel } from './curriculum.js'
 
 function ProfileForm({ initial, onSave, onCancel, onRemove }) {
   const [f, setF] = useState(initial)
@@ -9,7 +10,7 @@ function ProfileForm({ initial, onSave, onCancel, onRemove }) {
   const submit = (e) => {
     e.preventDefault()
     if (f.name.trim().length < 1) return setError('Enter a name or learner label.')
-    onSave({ name: f.name.trim(), strengths: f.strengths.trim(), support: f.support.trim() })
+    onSave({ name: f.name.trim(), strengths: f.strengths.trim(), support: f.support.trim(), language: f.language || 'en' })
   }
 
   return (
@@ -24,9 +25,15 @@ function ProfileForm({ initial, onSave, onCancel, onRemove }) {
       <label className="t-field">Support that helps
         <textarea rows="3" value={f.support} onChange={(e) => set('support', e.target.value)} placeholder="For example: short, sequenced instructions" />
       </label>
+      <label className="t-field">Learning language
+        <select value={f.language || 'en'} onChange={(e) => set('language', e.target.value)}>
+          {LANGUAGES.map((l) => <option key={l.code} value={l.code}>{l.label}</option>)}
+        </select>
+        <span className="t-hint">Chosen with the learner or family. Mothusi never guesses a language from a name or background.</span>
+      </label>
       <p className="t-note">
         Record strengths, learning preferences you have observed, and strategies that have helped.
-        Do not add diagnoses or guess needs from a learner's background.
+        Do not add diagnoses: Mothusi removes diagnostic labels before its agents see a profile.
       </p>
       {error && <p className="t-error" role="alert">{error}</p>}
       <div className="row">
@@ -81,7 +88,7 @@ export default function LearnerProfiles() {
             <div className="t-table-wrap">
               <table className="t-table">
                 <thead>
-                  <tr><th>Learner</th><th>Strengths</th><th>Support that helps</th><th>Action</th></tr>
+                  <tr><th>Learner</th><th>Strengths</th><th>Support that helps</th><th>Language</th><th>Action</th></tr>
                 </thead>
                 <tbody>
                   {rows.map((l) => (
@@ -89,11 +96,12 @@ export default function LearnerProfiles() {
                       <td>{l.name}<br /><span className="muted small-text">{l.code}</span></td>
                       <td>{l.strengths || <span className="muted">Not added</span>}</td>
                       <td>{l.support || <span className="muted">Not added</span>}</td>
+                      <td>{languageLabel(l.language || 'en')}</td>
                       <td><button type="button" className="btn secondary small" onClick={() => setEditing(l.id)}>View / Edit</button></td>
                     </tr>
                   ))}
                   {rows.length === 0 && (
-                    <tr><td colSpan="4" className="muted">No learner profiles found for this class.</td></tr>
+                    <tr><td colSpan="5" className="muted">No learner profiles found for this class.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -102,7 +110,7 @@ export default function LearnerProfiles() {
 
           {editing === 'new' && (
             <ProfileForm
-              initial={{ name: '', strengths: '', support: '' }}
+              initial={{ name: '', strengths: '', support: '', language: 'en' }}
               onSave={(data) => { addLearner(classId, data); setEditing(null) }}
               onCancel={() => setEditing(null)}
             />

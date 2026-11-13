@@ -1,10 +1,11 @@
 import { createContext, useContext, useEffect, useState } from 'react'
 import { getTeacherProfile, saveTeacherProfile } from '../services/profile.js'
+import { GRADES, SUBJECTS } from './curriculum.js'
 
 const TeacherContext = createContext(null)
 export const useTeacher = () => useContext(TeacherContext)
 
-const STORE_KEY = 'mothusi.teacherWorkspace'
+const STORE_KEY = 'mothusi.teacherWorkspace.v2'
 const PREFS_KEY = 'mothusi.teacherPrefs'
 
 const read = (key) => { try { return JSON.parse(localStorage.getItem(key)) } catch { return null } }
@@ -12,85 +13,49 @@ const write = (key, value) => { try { localStorage.setItem(key, JSON.stringify(v
 const uid = (p) => `${p}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
 const nowISO = () => new Date().toISOString()
 
-// ---------- Synthetic starter data (replace with API data later) ----------
+// ---------- Synthetic starter data. No real learner information is used. ----------
 const seedClasses = [
-  { id: 'c1', name: 'Grade 4A', grade: 'Grade 4', subjects: ['Mathematics', 'Natural Sciences'], size: 40, classTeacher: true, archived: false },
-  { id: 'c2', name: 'Grade 5B', grade: 'Grade 5', subjects: ['Mathematics'], size: 28, classTeacher: false, archived: false },
-  { id: 'c3', name: 'Grade 6A', grade: 'Grade 6', subjects: ['Technology'], size: 18, classTeacher: false, archived: false },
+  { id: 'c1', name: 'Grade 4A', grade: 'Grade 4', subjects: ['Mathematics', 'Home Language', 'Natural Sciences and Technology'], size: 40, classTeacher: true, archived: false },
+  { id: 'c2', name: 'Grade 3B', grade: 'Grade 3', subjects: ['Mathematics', 'First Additional Language', 'Life Skills'], size: 34, classTeacher: false, archived: false },
+  { id: 'c3', name: 'Grade 1C', grade: 'Grade 1', subjects: ['Mathematics', 'Life Skills'], size: 28, classTeacher: false, archived: false },
 ]
 
 const seedLearners = [
-  { id: 'lr1', code: 'L-001', classId: 'c1', name: 'Learner A', strengths: 'Visual thinking', support: 'Diagrams and concrete examples' },
-  { id: 'lr2', code: 'L-002', classId: 'c1', name: 'Learner B', strengths: 'Routine-oriented', support: 'Short, sequenced instructions' },
-  { id: 'lr3', code: 'L-003', classId: 'c1', name: 'Learner C', strengths: 'Enjoys discussion', support: 'Practical examples; selected language' },
+  { id: 'lr1', code: 'L-001', classId: 'c1', name: 'Learner A', strengths: 'Visual thinking', support: 'Visual explanations and diagrams', language: 'en' },
+  { id: 'lr2', code: 'L-002', classId: 'c1', name: 'Learner B', strengths: 'Likes routine', support: 'Short, structured instructions', language: 'en' },
+  { id: 'lr3', code: 'L-003', classId: 'c1', name: 'Learner C', strengths: 'Enjoys discussion', support: 'Practical examples with real objects', language: 'tn' },
+  { id: 'lr4', code: 'L-004', classId: 'c2', name: 'Learner D', strengths: 'Enjoys movement', support: 'Hands-on activities and short tasks', language: 'zu' },
+  { id: 'lr5', code: 'L-005', classId: 'c3', name: 'Learner E', strengths: 'Loves drawing', support: 'Pictures with every new word', language: 'xh' },
 ]
 
-const ad = (id, learner, text) => ({ id, learner, text, original: text, edited: false, removed: false })
+// Older saved profiles may list grades or subjects outside Grades 1–4.
+const DEFAULT_GRADES = ['Grade 1', 'Grade 3', 'Grade 4']
+const DEFAULT_SUBJECTS = ['Mathematics', 'Home Language', 'First Additional Language', 'Life Skills', 'Natural Sciences and Technology']
+const withinScope = (p) => {
+  const grades = (p.grades || []).filter((g) => GRADES.includes(g))
+  const subjects = (p.subjects || []).filter((x) => SUBJECTS.includes(x))
+  return { ...p, grades: grades.length ? grades : DEFAULT_GRADES, subjects: subjects.length ? subjects : DEFAULT_SUBJECTS }
+}
 
-const seedLesson = (o) => ({
-  version: 1,
-  needsRecheck: false,
-  feedback: null,
-  note: '',
-  flow: [
-    { label: 'Introduction', min: 5 },
-    { label: 'Modelling', min: 10 },
-    { label: 'Guided practice', min: 15 },
-    { label: 'Exit check', min: 10 },
-  ],
-  feasibility: ['No printer respected', '45-minute lesson', '5-minute individual support limit'],
-  checks: ['Learning objective retained', 'Constraints checked', 'Recommendations linked to profiles'],
-  history: [{ at: '2026-11-06T09:00:00.000Z', by: 'Mothusi', note: 'Draft generated' }],
-  ...o,
-})
-
-const seedLessons = [
-  seedLesson({
-    id: 'l1', title: 'Grade 4 Mathematics – Fractions', classId: 'c1', grade: 'Grade 4', subject: 'Mathematics',
-    topic: 'Fractions', date: '2026-11-09', status: 'awaiting_review', objectives: 'Represent halves, thirds and quarters.',
-    adaptations: [
-      ad('a1', 'Learner A', 'Draw fraction bars instead of printed worksheets'),
-      ad('a2', 'Learner B', 'Break instructions into short steps'),
-      ad('a3', 'Learner C', 'Use practical examples and selected-language explanations'),
-    ],
-  }),
-  seedLesson({
-    id: 'l2', title: 'Grade 5 Mathematics – Decimals', classId: 'c2', grade: 'Grade 5', subject: 'Mathematics',
-    topic: 'Decimals', date: '2026-11-08', status: 'approved', objectives: 'Read, write and compare decimals to two places.',
-    adaptations: [ad('a1', 'Whole class', 'Compare decimals on a number line drawn on the board')],
-    history: [
-      { at: '2026-11-05T09:00:00.000Z', by: 'Mothusi', note: 'Draft generated' },
-      { at: '2026-11-06T10:30:00.000Z', by: 'Teacher', note: 'Approved version 1' },
-    ],
-  }),
-  seedLesson({
-    id: 'l3', title: 'Grade 4 Natural Sciences – Habitats', classId: 'c1', grade: 'Grade 4', subject: 'Natural Sciences',
-    topic: 'Habitats', date: '2026-11-07', status: 'feedback_due', objectives: 'Describe how animals are suited to their habitats.',
-    adaptations: [
-      ad('a1', 'Learner A', 'Use labelled habitat diagrams on the board'),
-      ad('a2', 'Learner C', 'Link each habitat to animals the class knows'),
-    ],
-    history: [
-      { at: '2026-11-04T09:00:00.000Z', by: 'Mothusi', note: 'Draft generated' },
-      { at: '2026-11-05T11:00:00.000Z', by: 'Teacher', note: 'Approved version 1' },
-    ],
-  }),
-]
+const nextCode = (learners) => {
+  const max = learners.reduce((n, l) => Math.max(n, Number(l.code?.slice(2)) || 0), 0)
+  return `L-${String(max + 1).padStart(3, '0')}`
+}
 
 export function TeacherProvider({ children }) {
   const [stored] = useState(() => read(STORE_KEY))
   const [classes, setClasses] = useState(stored?.classes || seedClasses)
   const [learners, setLearners] = useState(stored?.learners || seedLearners)
-  const [lessons, setLessons] = useState(stored?.lessons || seedLessons)
+  const [lessons, setLessons] = useState(stored?.lessons || [])
   const [resources, setResources] = useState([]) // files live in memory only until the backend exists
 
-  const [profile, setProfile] = useState(() => ({
+  const [profile, setProfile] = useState(() => withinScope({
     fullName: 'Thandi Mokoena',
     email: 'teacher@school.example',
     school: 'Example Primary School',
     role: 'Teacher',
-    grades: ['Grade 4', 'Grade 5'],
-    subjects: ['Mathematics', 'Natural Sciences'],
+    grades: DEFAULT_GRADES,
+    subjects: DEFAULT_SUBJECTS,
     language: 'English',
     defaultConditions: '40 learners • limited printing',
     photoUrl: '',
@@ -121,8 +86,7 @@ export function TeacherProvider({ children }) {
 
   // ---------- Learners ----------
   const addLearner = (classId, data) => {
-    const code = `L-${String(learners.length + 1).padStart(3, '0')}`
-    setLearners((ls) => [...ls, { id: uid('lr'), code, classId, strengths: '', support: '', ...data }])
+    setLearners((ls) => [...ls, { id: uid('lr'), code: nextCode(ls), classId, strengths: '', support: '', language: 'en', ...data }])
     setClasses((cs) => cs.map((c) => (c.id === classId ? { ...c, size: Number(c.size || 0) + 1 } : c)))
   }
   const updateLearner = (id, patch) => setLearners((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)))
@@ -134,9 +98,10 @@ export function TeacherProvider({ children }) {
   }
 
   // ---------- Lessons ----------
+  const newLessonId = () => uid('l')
   const addLesson = (lesson) => {
-    const id = uid('l')
-    setLessons((ls) => [{ id, ...lesson }, ...ls])
+    const id = lesson.id || newLessonId()
+    setLessons((ls) => [{ ...lesson, id }, ...ls.filter((l) => l.id !== id)])
     return id
   }
   // patch can be an object or a function (lesson) => object
@@ -163,7 +128,7 @@ export function TeacherProvider({ children }) {
     profile, updateProfile, prefs, updatePrefs,
     classes, addClass, updateClass,
     learners, addLearner, updateLearner, removeLearner,
-    lessons, addLesson, updateLesson,
+    lessons, addLesson, updateLesson, newLessonId,
     resources, addResource, deleteResource,
   }
   return <TeacherContext.Provider value={value}>{children}</TeacherContext.Provider>
