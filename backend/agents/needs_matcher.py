@@ -1,7 +1,7 @@
 from orchestration.events import RunTrace
 from llm.client import LLMClient
 from models.schemas import LessonAnalysis, LessonRequest, NeedsMatch
-from agents.base import Agent, compact, describe_learners, describe_memory
+from agents.base import Agent, compact, describe_learners, describe_memory, resolve_learner
 
 SHAPE = """{
   "needs": [{"learner_id": "id from the profile list", "demand": "which lesson demand",
@@ -37,6 +37,8 @@ class NeedsMatcher(Agent):
             context={"request": req.model_dump(), "analysis": analysis.model_dump()},
         )
         valid = {l.id for l in req.learners}
+        for n in match.needs:
+            n.learner_id = resolve_learner(n.learner_id, req.learners) or n.learner_id
         dropped = [n for n in match.needs if n.learner_id not in valid]
         match.needs = [n for n in match.needs if n.learner_id in valid]
         if dropped:

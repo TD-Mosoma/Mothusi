@@ -9,7 +9,7 @@ export default function LearnerHome() {
   const { lang, profile } = useOutletContext()
   const { link, loading: linkLoading, setLink } = useLearnerLink()
   const { loading, lesson, error } = useLearnerLesson(lang, null, link?.class_id)
-  const { lessons } = useLearnerLessons(link?.class_id)
+  const { lessons, loading: lessonsLoading } = useLearnerLessons(link?.class_id)
   const notJoined = !linkLoading && !link
   const firstName = profile?.fullName?.trim().split(' ')[0]
   const { progress } = useLearnerProgress(link?.class_id)
@@ -47,8 +47,8 @@ export default function LearnerHome() {
 
       <section className="l-stats" aria-label={translate(lang, 'Your learning at a glance')}>
         <div className="l-stat-card stat-blue"><span className="l-stat-icon" aria-hidden="true">▤</span><span className="l-stat-label">{translate(lang, 'MY CLASS')}</span><strong>{link?.class_name || profile?.grade || translate(lang, 'Not set')}</strong></div>
-        <div className="l-stat-card stat-yellow"><span className="l-stat-icon" aria-hidden="true">✦</span><span className="l-stat-label">{translate(lang, 'LESSONS SHARED')}</span><strong>{lessons.length}</strong></div>
-        <div className="l-stat-card stat-green"><span className="l-stat-icon" aria-hidden="true">✎</span><span className="l-stat-label">{translate(lang, 'PRACTICE DONE')}</span><strong>{completed} {translate(lang, completed === 1 ? 'activity' : 'activities')}</strong></div>
+        <div className="l-stat-card stat-yellow"><span className="l-stat-icon" aria-hidden="true">✦</span><span className="l-stat-label">{translate(lang, 'LESSONS SHARED')}</span><strong>{lessonsLoading ? '…' : lessons.length}</strong></div>
+        <div className="l-stat-card stat-green"><span className="l-stat-icon" aria-hidden="true">✎</span><span className="l-stat-label">{translate(lang, 'PRACTICE DONE')}</span><strong>{progress ? `${completed} ${translate(lang, completed === 1 ? 'activity' : 'activities')}` : '…'}</strong></div>
         <div className="l-stat-card stat-pink"><span className="l-stat-icon" aria-hidden="true">◉</span><span className="l-stat-label">{translate(lang, 'MY LANGUAGE')}</span><strong>{languageLabel(lang)}</strong></div>
       </section>
 

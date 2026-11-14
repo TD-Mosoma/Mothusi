@@ -1,3 +1,4 @@
+import difflib
 import json
 from typing import Any, TypeVar
 
@@ -153,3 +154,35 @@ def compact(obj: Any) -> str:
     if isinstance(obj, BaseModel):
         return obj.model_dump_json(exclude_none=True)
     return json.dumps(obj, ensure_ascii=False, default=lambda o: o.model_dump() if isinstance(o, BaseModel) else str(o))
+
+
+# ---------------------------------------------------------------- learner references in model output
+
+def resolve_learner(raw: str, learners: list) -> str | None:
+    """The learner a model meant, as their id (or WHOLE_CLASS), or None when it cannot be told for sure.
+
+    Models sometimes write a learner's name instead of their id, or copy an id with a small slip ("lthabo" for
+    "lrthabo"). A learner must never lose their support over that, but a reference is only accepted when exactly
+    one learner fits it.
+    """
+    text = (raw or "").strip()
+    key = text.lower()
+    if key in {WHOLE_CLASS, "whole class", "class", "all learners"}:
+        return WHOLE_CLASS
+    ids = {l.id for l in learners}
+    if text in ids:
+        return text
+    exact = {l.id.lower(): l.id for l in learners}
+    exact.update({l.name.strip().lower(): l.id for l in learners})
+    exact.update({(l.code or "").strip().lower(): l.id for l in learners if getattr(l, "code", "")})
+    if key in exact:
+        return exact[key]
+    firsts: dict[str, list[str]] = {}
+    for l in learners:
+        firsts.setdefault(l.name.strip().split(" ")[0].lower(), []).append(l.id)
+    if len(firsts.get(key, [])) == 1:
+        return firsts[key][0]
+    scores = sorted(((difflib.SequenceMatcher(None, key, i.lower()).ratio(), i) for i in ids), reverse=True)
+    if scores and scores[0][0] >= 0.75 and (len(scores) == 1 or scores[0][0] - scores[1][0] >= 0.1):
+        return scores[0][1]
+    return None

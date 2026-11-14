@@ -5,7 +5,7 @@ from llm.client import Completion, LLMClient
 from models.schemas import Adaptation, DesignerTurn, DraftAdaptation, LessonAnalysis, LessonRequest, NeedsMatch
 from tools.strategy_library import relevant_strategies
 from tools.validation_tools import check_adaptations
-from agents.base import Agent, compact, describe_constraints, describe_learners, describe_memory
+from agents.base import Agent, compact, describe_constraints, describe_learners, describe_memory, resolve_learner
 
 MAX_TOOL_CALLS = 2
 
@@ -171,8 +171,7 @@ def _with_names(draft: DraftAdaptation, req: LessonRequest) -> DraftAdaptation:
     names = {l.id: l.name for l in req.learners}
     if not names:
         return draft
-    by_label = {name.strip().lower(): lid for lid, name in names.items()}
-    learner_id = by_label.get(draft.learner_id.strip().lower(), draft.learner_id)
+    learner_id = resolve_learner(draft.learner_id, req.learners) or draft.learner_id
     pattern = re.compile(r"\b(" + "|".join(re.escape(i) for i in names) + r")\b")
     swap = lambda text: pattern.sub(lambda m: names[m.group(1)], text)
     return draft.model_copy(update={"learner_id": learner_id, "strategy": swap(draft.strategy),

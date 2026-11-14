@@ -38,6 +38,7 @@ export function useLearnerLessons(refreshKey) {
 
   useEffect(() => {
     let alive = true
+    setState((s) => ({ ...s, loading: true }))
     listLearnerLessons()
       .then((lessons) => alive && setState({ loading: false, lessons, error: '' }))
       .catch((e) => alive && setState({ loading: false, lessons: [], error: e.message }))

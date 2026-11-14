@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Callable, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from agents.base import AgentOutputError
+from agents.base import AgentOutputError, resolve_learner
 from agents.reviewer import ReviewOutcome
 from llm.client import LLMClient, LLMError
 from models.schemas import Adaptation, LessonAnalysis, LessonRequest, NeedsMatch, WorkPlan, language_name
@@ -90,8 +90,7 @@ def build_graph(orch: "Orchestrator"):
                             personalise_for=[l.id for l in req.learners])
 
         valid = {l.id for l in req.learners}
-        by_label = {l.name.strip().lower(): l.id for l in req.learners}
-        requested = [by_label.get(i.strip().lower(), i) for i in work.personalise_for]
+        requested = [resolve_learner(i, req.learners) or i for i in work.personalise_for]
         chosen = [i for i in dict.fromkeys(requested) if i in valid]
         guardrails = []
         if len(chosen) != len(set(requested)):
