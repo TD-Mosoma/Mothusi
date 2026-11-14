@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useActiveClasses, useTeacher } from './TeacherContext.jsx'
 import { getRoster } from '../services/api.js'
-import { STATUS } from './format.js'
-import { explainSummary, lessonInsight, mostMissed, useClassInsights } from './insights.js'
+import { formatDate, STATUS } from './format.js'
+import { asksFor, feelingSummary, lessonInsight, mostMissed, plural, useClassInsights } from './insights.js'
 
 function greeting() {
   const h = new Date().getHours()
@@ -15,8 +15,9 @@ const SHARED = ['approved', 'feedback_due', 'completed']
 export default function TeacherDashboard() {
   const { profile, classes, learners, lessons, addSampleClass, removeClass, notify, prefs, updatePrefs } = useTeacher()
   const active = useActiveClasses()
-  const [codes, setCodes] = useState(null)
-  useEffect(() => { getRoster().then((r) => setCodes(r.codes), () => setCodes([])) }, [classes.length])
+  const [roster, setRoster] = useState(null)
+  useEffect(() => { getRoster().then(setRoster, () => setRoster({ codes: [], learners: [] })) }, [classes.length])
+  const codes = roster?.codes
 
   const first = profile.fullName.trim().split(' ')[0]
   const sample = classes.find((c) => c.sample)
@@ -49,7 +50,7 @@ export default function TeacherDashboard() {
     ...preparing.map((l) => ({ key: `p-${l.id}`, to: `/teacher/lessons/${l.id}`, text: l.topic, status: 'preparing' })),
     ...ready.map((l) => ({ key: `r-${l.id}`, to: `/teacher/lessons/${l.id}`, text: `Review ${l.topic}`, status: l.status })),
     ...failed.map((l) => ({ key: `x-${l.id}`, to: `/teacher/lessons/${l.id}`, text: l.topic, status: 'failed' })),
-    ...feedbackDue.map((l) => ({ key: `f-${l.id}`, to: `/teacher/lessons/${l.id}/feedback`, text: `How did ${l.topic} go?`, status: 'feedback_due' })),
+    ...feedbackDue.map((l) => ({ key: `f-${l.id}`, to: `/teacher/lessons/${l.id}/feedback`, text: `Give feedback on ${l.topic}`, status: 'feedback_due' })),
   ]
 
   return (
@@ -61,6 +62,31 @@ export default function TeacherDashboard() {
         </div>
         {active.length > 0 && <Link to="/teacher/plan" className="btn">New lesson</Link>}
       </div>
+
+      {active.length > 0 && (
+        <section className="t-stats" aria-label="Overview">
+          <Link to="/teacher/classes" className="t-stat">
+            <span className="t-stat-label">Classes</span>
+            <strong>{plural(active.length, 'active class', 'active classes')}</strong>
+            <span className="t-stat-sub">{active.reduce((n, c) => n + Number(c.size || 0), 0)} learners in total</span>
+          </Link>
+          <Link to="/teacher/profiles" className="t-stat">
+            <span className="t-stat-label">Learners &amp; codes</span>
+            <strong>{plural(learners.filter((l) => active.some((c) => c.id === l.classId)).length, 'support profile')}</strong>
+            <span className="t-stat-sub">{roster ? `${plural(roster.learners.length, 'learner')} signed in to Mothusi` : '…'}</span>
+          </Link>
+          <Link to="/teacher/lessons" className="t-stat">
+            <span className="t-stat-label">Lesson plans</span>
+            <strong>{plural(lessons.length, 'lesson plan')}</strong>
+            <span className="t-stat-sub">{ready.length} ready for review • {lessons.filter((l) => SHARED.includes(l.status)).length} shared</span>
+          </Link>
+          <Link to="/teacher/lessons" className="t-stat">
+            <span className="t-stat-label">After teaching</span>
+            <strong>{plural(feedbackDue.length, 'feedback note')} due</strong>
+            <span className="t-stat-sub">{plural(lessons.filter((l) => l.status === 'completed').length, 'lesson')} with feedback</span>
+          </Link>
+        </section>
+      )}
 
       {active.length === 0 && (
         <section className="card stack t-welcome">
@@ -139,35 +165,85 @@ export default function TeacherDashboard() {
         </div>
       )}
 
-      {active.map((c) => <ClassPulse key={c.id} cls={c} lessons={lessons.filter((l) => l.classId === c.id && SHARED.includes(l.status))} />)}
+      {active.map((c) => (
+        <ClassSummary key={c.id} cls={c} lessons={lessons.filter((l) => l.classId === c.id && SHARED.includes(l.status))}
+          learners={learners} roster={roster} />
+      ))}
 
     </div>
   )
 }
 
-// The latest shared lesson for a class, and what its learners did with it.
-function ClassPulse({ cls, lessons }) {
-  const latest = [...lessons].sort((a, b) => (b.approvedAt || b.date || '').localeCompare(a.approvedAt || a.date || ''))[0]
-  const { data } = useClassInsights(latest ? cls.id : null)
-  if (!latest) return null
-  const insight = lessonInsight(data, latest)
-  const missed = mostMissed(insight, latest)
-  const explain = explainSummary(insight?.explain_styles)
-  const size = latest.constraints?.class_size ?? cls.size
+// A class at a glance: its most recent shared lessons, what learners did with them, and who to check on.
+function ClassSummary({ cls, lessons, learners, roster }) {
+  const recent = [...lessons].sort((a, b) => (b.date || '').localeCompare(a.date || '')).slice(0, 3)
+  const { data, loading } = useClassInsights(recent.length ? cls.id : null)
+  const nameFor = (key) => (key.startsWith('class:')
+    ? roster?.learners.find((r) => r.account_id === key.slice(6))?.name || 'A learner'
+    : learners.find((l) => l.id === key)?.name || 'A learner')
+  const checkOn = Object.entries(data?.learners || {}).map(([key, p]) => {
+    const reasons = []
+    if (p.feelings?.Difficult) reasons.push('found it difficult')
+    if (p.missed > p.first_try) reasons.push(`missed ${p.missed} of ${p.missed + p.first_try} at first try`)
+    const asked = asksFor(p.explain_styles)
+    if (asked) reasons.push(`asked for ${asked}`)
+    return { key, name: nameFor(key), reasons }
+  }).filter((l) => l.reasons.length).slice(0, 4)
+
   return (
-    <section className="card stack t-pulse">
+    <section className="card stack t-class-summary">
       <div className="t-list-row">
-        <h2>{cls.name}: {latest.topic}</h2>
-        <Link to={`/teacher/lessons/${latest.id}`} className="small-text">Open lesson</Link>
+        <h2>{cls.name}</h2>
+        <span className="row tight">
+          <Link to="/teacher/insights" className="btn ghost small">Class insights</Link>
+          <Link to="/teacher/plan" state={{ classId: cls.id }} className="btn secondary small">Plan a lesson</Link>
+        </span>
       </div>
-      {!insight ? <p className="muted">Loading…</p> : insight.opened === 0 ? (
-        <p className="muted">Shared with learners. Nobody has opened it yet.</p>
+      {recent.length === 0 ? (
+        <p className="muted">No lessons shared with {cls.name} yet. Approve a lesson to share it with learners.</p>
       ) : (
-        <ul className="t-list">
-          <li><strong>{insight.opened} of {size}</strong> learners opened it • {insight.practised} finished the practice</li>
-          {missed && <li>Most missed: "{missed.prompt}"</li>}
-          {explain && <li>Explanations asked for: {explain}</li>}
-        </ul>
+        <div className="t-summary-grid">
+          <div className="stack">
+            <h3>Recent lessons</h3>
+            <ul className="t-list">
+              {recent.map((l) => {
+                const i = lessonInsight(data, l)
+                const missed = mostMissed(i, l)
+                const felt = feelingSummary(i?.feelings)
+                const size = l.constraints?.class_size ?? cls.size
+                return (
+                  <li key={l.id} className="t-recent">
+                    <div className="t-list-row">
+                      <Link to={`/teacher/lessons/${l.id}`}><strong>{l.topic}</strong></Link>
+                      <span className="muted small-text">{formatDate(l.date)}</span>
+                    </div>
+                    {loading || !i ? <span className="muted small-text">Loading…</span> : i.opened === 0 ? (
+                      <span className="muted small-text">Shared. Nobody has opened it yet.</span>
+                    ) : (
+                      <span className="small-text">
+                        <b>{i.opened} of {size}</b> opened • {i.practised} finished the practice
+                        {missed ? <> • most missed: “{missed.prompt}”</> : null}
+                        {felt ? <> • felt: {felt}</> : null}
+                      </span>
+                    )}
+                  </li>
+                )
+              })}
+            </ul>
+          </div>
+          <div className="stack">
+            <h3>Learners to check on</h3>
+            {loading ? <p className="muted small-text">Loading…</p> : checkOn.length === 0 ? (
+              <p className="muted small-text">Nobody needs a check-in from the lessons so far.</p>
+            ) : (
+              <ul className="t-list">
+                {checkOn.map((l) => (
+                  <li key={l.key}><strong>{l.name}</strong> <span className="muted small-text">{l.reasons.join(' • ')}</span></li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       )}
     </section>
   )
