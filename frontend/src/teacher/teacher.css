@@ -198,10 +198,11 @@
 .t-assign { display: flex; justify-content: space-between; align-items: center; gap: var(--s-4); flex-wrap: wrap; padding: var(--s-3) var(--s-4); border: 1px solid var(--line); border-radius: var(--r-md); }
 .t-assign p { margin: 2px 0 0; }
 /* ---------- Agent activity ---------- */
-.t-activity { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: var(--s-5); align-items: start; }
-@media (max-width: 1000px) { .t-activity { grid-template-columns: 1fr; } }
-.t-run-list ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--s-2); max-height: 70vh; overflow-y: auto; }
-.t-run { width: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: var(--s-3); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); color: var(--ink); cursor: pointer; font: inherit; }
+.t-activity { display: flex; flex-direction: column; gap: var(--s-5); }
+/* Recent work is a strip of cards, so the recorded run and its workflow graph get the full width. */
+.t-run-list ul { list-style: none; margin: 0; padding: 2px 2px var(--s-2); display: flex; gap: var(--s-3); overflow-x: auto; scroll-snap-type: x proximity; }
+.t-run-list li { flex: 0 0 260px; display: flex; scroll-snap-align: start; }
+.t-run { width: 100%; height: 100%; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: var(--s-3); border: 1px solid var(--line); border-radius: var(--r-md); background: var(--surface); color: var(--ink); cursor: pointer; font: inherit; }
 .t-run:hover { border-color: var(--brand); }
 .t-run.on { border-color: var(--brand-strong); box-shadow: 0 0 0 2px var(--brand-soft); }
 .t-run strong { font-family: var(--font-display); font-weight: 500; font-size: 0.95rem; }

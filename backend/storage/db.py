@@ -75,7 +75,9 @@ class Database:
             self.dialect = "postgres"
             # prepare_threshold=None keeps it working through Supabase's transaction pooler as well.
             # Small pools on serverless hosts: many instances may each hold one.
+            # Supabase's pooler closes idle connections, so check each one before use and recycle old ones.
             self._pool = ConnectionPool(self.target, min_size=1, max_size=max(1, pool_max), open=True, timeout=30,
+                                        check=ConnectionPool.check_connection, max_idle=120, max_lifetime=900,
                                         kwargs={"prepare_threshold": None, "row_factory": dict_row})
         else:
             self.dialect = "sqlite"

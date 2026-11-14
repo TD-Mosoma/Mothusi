@@ -133,7 +133,7 @@ export default function AgentGraph({ events }) {
                 <text x={x - BOX.w / 2 + 16} y={y + 14} className="ag-node-label">{n.label}</text>
                 {visits > 1 && <text x={x + BOX.w / 2} y={y - BOX.h / 2 - 6} textAnchor="end" className="ag-badge">×{visits}</text>}
                 {rejected > 0 && (
-                  <text x={x + BOX.w / 2 - 8} y={y + BOX.h / 2 - 7} textAnchor="end" className="ag-badge bad">{rejected} rejected</text>
+                  <text x={x - BOX.w / 2} y={y - BOX.h / 2 - 6} className="ag-badge bad">{rejected} rejected</text>
                 )}
               </g>
             )

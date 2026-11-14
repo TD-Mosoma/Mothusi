@@ -58,7 +58,8 @@ function useTicker(active) {
   return now
 }
 
-export default function AgentTimeline({ events, status, title = 'How Mothusi worked', compact = false }) {
+// `replay` ({ ms, speed }) plays a finished run back: the clock shows the recorded time, not the time since it started.
+export default function AgentTimeline({ events, status, title = 'How Mothusi worked', compact = false, replay = null }) {
   const [agentFilter, setAgentFilter] = useState(null)
   const [keyOnly, setKeyOnly] = useState(false)
   const [follow, setFollow] = useState(true)
@@ -68,7 +69,7 @@ export default function AgentTimeline({ events, status, title = 'How Mothusi wor
   const now = useTicker(running && events.length > 0)
   const started = events[0]
   const last = events[events.length - 1]
-  const elapsed = running && started ? now - new Date(started.ts).getTime() : last?.elapsed_ms || 0
+  const elapsed = replay ? replay.ms : running && started ? now - new Date(started.ts).getTime() : last?.elapsed_ms || 0
 
     const live = started?.data?.live
   const states = useMemo(() => agentStates(events), [events])
@@ -95,6 +96,7 @@ export default function AgentTimeline({ events, status, title = 'How Mothusi wor
     idle: 'Not started', connecting: 'Connecting', running: 'Live', done: 'Finished', failed: 'Stopped safely',
     disconnected: 'Connection lost',
   }[status]
+  const label = replay ? `Replay ×${replay.speed}` : statusLabel
 
   return (
     <section className={`at card ${compact ? 'compact' : ''}`} aria-label={title}>
@@ -106,7 +108,7 @@ export default function AgentTimeline({ events, status, title = 'How Mothusi wor
           </p>
         </div>
         <div className="at-status">
-          <span className={`at-live ${status}`}><span className="at-dot" aria-hidden="true" />{statusLabel}</span>
+          <span className={`at-live ${status}`}><span className="at-dot" aria-hidden="true" />{label}</span>
           <span className="at-clock" aria-label="Elapsed time">{seconds(elapsed)}</span>
         </div>
       </header>
